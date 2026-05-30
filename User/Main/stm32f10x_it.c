@@ -25,6 +25,9 @@
 #include "stm32f10x_it.h"
 #include "hw_config.h"
 #include "lcd.h"
+
+extern volatile u8 g_snake_buzzer_enable;
+extern volatile u8 g_snake_buzzer_phase;
 /** @addtogroup STM32F10x_StdPeriph_Template
   * @{
   */
@@ -168,7 +171,22 @@ void TIM3_IRQHandler(void)
 		else 						GPIO_SetBits(GPIOD,GPIO_Pin_4); 		/*  PD4=1£¨LED3Ãð£©*/
 	}
 }
-
+void TIM4_IRQHandler(void)
+{
+	if (TIM_GetITStatus(TIM4, TIM_IT_Update) != RESET)
+	{
+		TIM_ClearITPendingBit(TIM4, TIM_IT_Update);
+		if (g_snake_buzzer_enable)
+		{
+			g_snake_buzzer_phase = (u8)!g_snake_buzzer_phase;
+			BEEP(g_snake_buzzer_phase);
+		}
+		else
+		{
+			BEEP(0);
+		}
+	}
+}
 
 
 /******************************************************************************/
@@ -193,3 +211,5 @@ void TIM3_IRQHandler(void)
 
 
 /******************* (C) COPYRIGHT 2011 STMicroelectronics *****END OF FILE****/
+
+
