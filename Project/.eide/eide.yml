@@ -25,6 +25,8 @@ virtualFolder:
             - path: ../Libraries/STM32F10x_StdPeriph_Driver_V3.5/src/stm32f10x_gpio.c
             - path: ../Libraries/STM32F10x_StdPeriph_Driver_V3.5/src/stm32f10x_rcc.c
             - path: ../Libraries/STM32F10x_StdPeriph_Driver_v3.5/src/stm32f10x_adc.c
+            - path: ../Libraries/STM32F10x_StdPeriph_Driver_v3.5/src/stm32f10x_dac.c
+            - path: ../Libraries/STM32F10x_StdPeriph_Driver_v3.5/src/stm32f10x_dma.c
             - path: ../Libraries/STM32F10x_StdPeriph_Driver_V3.5/src/misc.c
             - path: ../Libraries/STM32F10x_StdPeriph_Driver_v3.5/src/stm32f10x_exti.c
             - path: ../Libraries/STM32F10x_StdPeriph_Driver_v3.5/src/stm32f10x_tim.c
