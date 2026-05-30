@@ -13,8 +13,15 @@
 #define MUSIC_COUNT(a)  ((u8)(sizeof(a) / sizeof((a)[0])))
 
 #define NOTE_REST       0
+#define NOTE_C3         131
+#define NOTE_CS3        139
+#define NOTE_D3         147
+#define NOTE_DS3        156
+#define NOTE_E3         165
 #define NOTE_F3         175
+#define NOTE_FS3        185
 #define NOTE_G3         196
+#define NOTE_GS3        208
 #define NOTE_A3         220
 #define NOTE_AS3        233
 #define NOTE_B3         247
@@ -65,6 +72,11 @@
 #define KNOB_CENTER_LOW   1700
 #define KNOB_CENTER_HIGH  2400
 #define KNOB_TURN_DELTA   420
+#define VOLUME_MAX        5
+#define VOLUME_DEFAULT    4
+#define AUDIO_WAVE_POINTS 32
+#define AUDIO_DAC_CENTER  2047
+#define AUDIO_DAC_DHR12R2 ((u32)0x40007414)
 
 #define FOOD_NORMAL     0
 #define FOOD_POISON     1
@@ -100,69 +112,74 @@ typedef struct {
 } LevelMusic;
 
 static const MusicNote music_level1[] = {
-    {NOTE_C4, 360}, {NOTE_G4, 220}, {NOTE_C5, 460}, {NOTE_E5, 260},
-    {NOTE_D5, 180}, {NOTE_C5, 460}, {NOTE_REST, 90},
-    {NOTE_A3, 340}, {NOTE_E4, 220}, {NOTE_A4, 420}, {NOTE_C5, 260},
-    {NOTE_B4, 180}, {NOTE_A4, 420}, {NOTE_REST, 90},
-    {NOTE_F4, 360}, {NOTE_C5, 220}, {NOTE_E5, 420}, {NOTE_D5, 200},
-    {NOTE_C5, 360}, {NOTE_G4, 300}, {NOTE_REST, 100},
-    {NOTE_G3, 300}, {NOTE_D4, 180}, {NOTE_G4, 260}, {NOTE_B4, 380},
-    {NOTE_D5, 240}, {NOTE_C5, 520}, {NOTE_REST, 140}
+    {NOTE_C4, 260}, {NOTE_E4, 180}, {NOTE_G4, 260}, {NOTE_C5, 380},
+    {NOTE_B4, 180}, {NOTE_G4, 220}, {NOTE_A4, 340}, {NOTE_REST, 70},
+    {NOTE_D4, 240}, {NOTE_F4, 180}, {NOTE_A4, 260}, {NOTE_D5, 360},
+    {NOTE_C5, 180}, {NOTE_A4, 220}, {NOTE_B4, 340}, {NOTE_REST, 70},
+    {NOTE_E4, 240}, {NOTE_G4, 180}, {NOTE_C5, 300}, {NOTE_E5, 400},
+    {NOTE_D5, 180}, {NOTE_C5, 220}, {NOTE_A4, 320}, {NOTE_REST, 80},
+    {NOTE_F4, 220}, {NOTE_A4, 160}, {NOTE_D5, 300}, {NOTE_C5, 220},
+    {NOTE_B4, 200}, {NOTE_G4, 220}, {NOTE_C5, 520}, {NOTE_REST, 120}
 };
 
 static const MusicNote music_level2[] = {
-    {NOTE_D4, 420}, {NOTE_A4, 240}, {NOTE_D5, 420}, {NOTE_C5, 220},
-    {NOTE_AS4, 360}, {NOTE_A4, 320}, {NOTE_REST, 100},
-    {NOTE_F4, 380}, {NOTE_C5, 220}, {NOTE_F5, 380}, {NOTE_E5, 180},
-    {NOTE_D5, 420}, {NOTE_A4, 300}, {NOTE_REST, 100},
-    {NOTE_G4, 300}, {NOTE_D5, 220}, {NOTE_G5, 460}, {NOTE_F5, 220},
-    {NOTE_E5, 340}, {NOTE_C5, 300}, {NOTE_REST, 90},
-    {NOTE_AS3, 280}, {NOTE_F4, 180}, {NOTE_AS4, 260}, {NOTE_D5, 380},
-    {NOTE_C5, 240}, {NOTE_D5, 560}, {NOTE_REST, 140}
+    {NOTE_D3, 520}, {NOTE_A3, 260}, {NOTE_D4, 520}, {NOTE_F4, 280},
+    {NOTE_E4, 260}, {NOTE_C4, 360}, {NOTE_REST, 110},
+    {NOTE_AS3, 460}, {NOTE_F4, 260}, {NOTE_AS4, 420}, {NOTE_A4, 220},
+    {NOTE_G4, 340}, {NOTE_D4, 380}, {NOTE_REST, 100},
+    {NOTE_C4, 360}, {NOTE_G3, 240}, {NOTE_C4, 260}, {NOTE_E4, 360},
+    {NOTE_F4, 220}, {NOTE_E4, 260}, {NOTE_D4, 520}, {NOTE_REST, 120},
+    {NOTE_D3, 240}, {NOTE_REST, 60}, {NOTE_D3, 240}, {NOTE_A3, 360},
+    {NOTE_C4, 260}, {NOTE_F4, 360}, {NOTE_D4, 640}, {NOTE_REST, 160}
 };
 
 static const MusicNote music_level3[] = {
-    {NOTE_E4, 420}, {NOTE_B4, 220}, {NOTE_G5, 500}, {NOTE_FS5, 180},
-    {NOTE_E5, 360}, {NOTE_D5, 340}, {NOTE_REST, 100},
-    {NOTE_C4, 380}, {NOTE_G4, 220}, {NOTE_E5, 440}, {NOTE_D5, 180},
-    {NOTE_B4, 340}, {NOTE_G4, 300}, {NOTE_REST, 80},
-    {NOTE_B3, 320}, {NOTE_FS4, 220}, {NOTE_D5, 460}, {NOTE_E5, 220},
-    {NOTE_FS5, 320}, {NOTE_G5, 480}, {NOTE_REST, 120},
-    {NOTE_E4, 260}, {NOTE_G4, 180}, {NOTE_B4, 260}, {NOTE_E5, 380},
-    {NOTE_D5, 220}, {NOTE_B4, 540}, {NOTE_REST, 140}
+    {NOTE_E4, 360}, {NOTE_B4, 260}, {NOTE_FS5, 540}, {NOTE_REST, 80},
+    {NOTE_G5, 180}, {NOTE_FS5, 180}, {NOTE_E5, 380}, {NOTE_B4, 300},
+    {NOTE_CS4, 340}, {NOTE_GS4, 260}, {NOTE_DS5, 520}, {NOTE_REST, 90},
+    {NOTE_E5, 180}, {NOTE_DS5, 180}, {NOTE_CS5, 360}, {NOTE_GS4, 320},
+    {NOTE_A3, 320}, {NOTE_E4, 240}, {NOTE_B4, 480}, {NOTE_CS5, 220},
+    {NOTE_E5, 300}, {NOTE_FS5, 520}, {NOTE_REST, 120},
+    {NOTE_B3, 300}, {NOTE_FS4, 220}, {NOTE_CS5, 420}, {NOTE_B4, 240},
+    {NOTE_GS4, 300}, {NOTE_E4, 620}, {NOTE_REST, 160}
 };
 
 static const MusicNote music_level4[] = {
-    {NOTE_A3, 260}, {NOTE_E4, 180}, {NOTE_A4, 360}, {NOTE_C5, 180},
-    {NOTE_E5, 280}, {NOTE_D5, 180}, {NOTE_C5, 360}, {NOTE_REST, 80},
-    {NOTE_G3, 260}, {NOTE_D4, 180}, {NOTE_G4, 340}, {NOTE_B4, 180},
-    {NOTE_D5, 300}, {NOTE_C5, 180}, {NOTE_B4, 360}, {NOTE_REST, 80},
-    {NOTE_F3, 240}, {NOTE_C4, 180}, {NOTE_F4, 280}, {NOTE_A4, 240},
-    {NOTE_C5, 420}, {NOTE_B4, 180}, {NOTE_GS4, 320},
-    {NOTE_E4, 240}, {NOTE_GS4, 160}, {NOTE_B4, 240}, {NOTE_E5, 460},
-    {NOTE_D5, 200}, {NOTE_C5, 560}, {NOTE_REST, 140}
+    {NOTE_A3, 180}, {NOTE_REST, 40}, {NOTE_E4, 180}, {NOTE_A4, 220},
+    {NOTE_C5, 180}, {NOTE_E5, 260}, {NOTE_D5, 140}, {NOTE_C5, 300},
+    {NOTE_REST, 70},
+    {NOTE_GS3, 180}, {NOTE_REST, 40}, {NOTE_E4, 180}, {NOTE_GS4, 220},
+    {NOTE_B4, 180}, {NOTE_E5, 260}, {NOTE_D5, 140}, {NOTE_B4, 300},
+    {NOTE_REST, 70},
+    {NOTE_F3, 160}, {NOTE_C4, 160}, {NOTE_F4, 220}, {NOTE_A4, 180},
+    {NOTE_C5, 300}, {NOTE_AS4, 150}, {NOTE_A4, 260}, {NOTE_REST, 60},
+    {NOTE_E4, 160}, {NOTE_GS4, 160}, {NOTE_B4, 220}, {NOTE_E5, 340},
+    {NOTE_GS5, 180}, {NOTE_E5, 180}, {NOTE_C5, 520}, {NOTE_REST, 130}
 };
 
 static const MusicNote music_level5[] = {
-    {NOTE_C4, 220}, {NOTE_REST, 60}, {NOTE_C4, 220}, {NOTE_G3, 360},
-    {NOTE_DS4, 420}, {NOTE_D4, 260}, {NOTE_C4, 520}, {NOTE_REST, 120},
-    {NOTE_C4, 180}, {NOTE_REST, 50}, {NOTE_C4, 180}, {NOTE_G3, 300},
-    {NOTE_F4, 360}, {NOTE_DS4, 240}, {NOTE_D4, 520}, {NOTE_REST, 100},
-    {NOTE_G3, 240}, {NOTE_C4, 240}, {NOTE_G4, 460}, {NOTE_FS4, 180},
-    {NOTE_F4, 300}, {NOTE_DS4, 260}, {NOTE_C4, 560}, {NOTE_REST, 120},
-    {NOTE_C5, 180}, {NOTE_B4, 160}, {NOTE_AS4, 260}, {NOTE_G4, 340},
-    {NOTE_DS5, 280}, {NOTE_D5, 260}, {NOTE_C5, 640}, {NOTE_REST, 160}
+    {NOTE_C3, 180}, {NOTE_REST, 45}, {NOTE_C3, 180}, {NOTE_REST, 80},
+    {NOTE_G3, 360}, {NOTE_DS4, 520}, {NOTE_D4, 260}, {NOTE_C4, 620},
+    {NOTE_REST, 130},
+    {NOTE_C3, 150}, {NOTE_REST, 40}, {NOTE_C3, 150}, {NOTE_REST, 60},
+    {NOTE_G3, 300}, {NOTE_F4, 420}, {NOTE_DS4, 260}, {NOTE_D4, 620},
+    {NOTE_REST, 110},
+    {NOTE_C3, 130}, {NOTE_REST, 35}, {NOTE_C3, 130}, {NOTE_G3, 240},
+    {NOTE_C4, 240}, {NOTE_G4, 480}, {NOTE_FS4, 180}, {NOTE_F4, 360},
+    {NOTE_DS4, 300}, {NOTE_C4, 660}, {NOTE_REST, 140},
+    {NOTE_C5, 180}, {NOTE_B4, 150}, {NOTE_AS4, 240}, {NOTE_G4, 320},
+    {NOTE_DS5, 340}, {NOTE_D5, 300}, {NOTE_C5, 760}, {NOTE_REST, 180}
 };
 
 static const MusicNote music_home[] = {
-    {NOTE_E4, 620}, {NOTE_REST, 80}, {NOTE_B3, 420}, {NOTE_E4, 620},
-    {NOTE_G4, 720}, {NOTE_FS4, 360}, {NOTE_D4, 560}, {NOTE_REST, 140},
-    {NOTE_C4, 520}, {NOTE_G3, 420}, {NOTE_B3, 560}, {NOTE_E4, 820},
-    {NOTE_REST, 160},
-    {NOTE_A3, 560}, {NOTE_E4, 360}, {NOTE_C5, 640}, {NOTE_B4, 300},
-    {NOTE_G4, 620}, {NOTE_FS4, 360}, {NOTE_E4, 760}, {NOTE_REST, 160},
-    {NOTE_D4, 520}, {NOTE_A3, 380}, {NOTE_D5, 620}, {NOTE_C5, 360},
-    {NOTE_B4, 760}, {NOTE_G4, 420}, {NOTE_E4, 900}, {NOTE_REST, 220}
+    {NOTE_E3, 760}, {NOTE_REST, 110}, {NOTE_B3, 520}, {NOTE_E4, 760},
+    {NOTE_G4, 900}, {NOTE_FS4, 420}, {NOTE_D4, 700}, {NOTE_REST, 180},
+    {NOTE_C4, 640}, {NOTE_G3, 520}, {NOTE_B3, 680}, {NOTE_E4, 980},
+    {NOTE_REST, 220},
+    {NOTE_A3, 700}, {NOTE_E4, 420}, {NOTE_C5, 820}, {NOTE_B4, 360},
+    {NOTE_G4, 780}, {NOTE_FS4, 420}, {NOTE_E4, 980}, {NOTE_REST, 220},
+    {NOTE_D4, 620}, {NOTE_A3, 460}, {NOTE_D5, 760}, {NOTE_C5, 420},
+    {NOTE_B4, 920}, {NOTE_G4, 520}, {NOTE_E4, 1120}, {NOTE_REST, 260}
 };
 
 static const LevelMusic level_music[LEVEL_COUNT] = {
@@ -172,6 +189,15 @@ static const LevelMusic level_music[LEVEL_COUNT] = {
     {music_level4, MUSIC_COUNT(music_level4)},
     {music_level5, MUSIC_COUNT(music_level5)}
 };
+
+static const u16 audio_sine_base[AUDIO_WAVE_POINTS] = {
+    2047, 2447, 2831, 3185, 3498, 3750, 3939, 4056,
+    4095, 4056, 3939, 3750, 3495, 3185, 2831, 2447,
+    2047, 1647, 1263, 909, 599, 344, 155, 38,
+    0, 38, 155, 344, 599, 909, 1263, 1647
+};
+
+static u16 audio_sine_buffer[AUDIO_WAVE_POINTS];
 
 static const char level_map[LEVEL_COUNT][GRID_ROWS][GRID_COLS + 1] = {
     {
@@ -338,6 +364,8 @@ static u8 music_index;
 static u16 music_left_ms;
 static u16 music_gap_ms;
 static u16 music_freq;
+static u8 audio_playing;
+static u8 audio_wave_volume = 0xff;
 static u32 rng_state = 0x13572468;
 static SnakeDir dir;
 static SnakeDir next_dir;
@@ -345,17 +373,15 @@ static u8 key_last_raw;
 static u8 key_stable;
 static u8 key_stable_count;
 static u8 key_press_latch;
-static u8 knob_zone;
 static u8 knob_event_latch;
+static u8 knob_adc_channel = ADC_Channel_3;
 static u16 knob_last_value;
+static u8 sound_volume = VOLUME_DEFAULT;
 static u8 turn_pending;
 static u8 paused;
 static u8 pause_lock;
 static u8 start_level;
 static const char *status_msg = "READY";
-
-volatile u8 g_snake_buzzer_enable = 0;
-volatile u8 g_snake_buzzer_phase = 0;
 
 static u16 Snake_Rand(u16 max)
 {
@@ -437,13 +463,13 @@ static void Snake_ADCConfiguration(void)
     ADC_SoftwareStartConvCmd(ADC1, ENABLE);
 }
 
-static u16 Snake_KnobRead(void)
+static u16 Snake_ReadAdcChannel(u8 channel)
 {
     u8 i;
     u32 sum = 0;
 
     for (i = 0; i < 4; i++) {
-        ADC_RegularChannelConfig(ADC1, ADC_Channel_3, 1,
+        ADC_RegularChannelConfig(ADC1, channel, 1,
                                  ADC_SampleTime_239Cycles5);
         ADC_SoftwareStartConvCmd(ADC1, ENABLE);
         while (ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == RESET) {
@@ -452,6 +478,11 @@ static u16 Snake_KnobRead(void)
     }
 
     return (u16)(sum / 4);
+}
+
+static u16 Snake_KnobRead(void)
+{
+    return Snake_ReadAdcChannel(knob_adc_channel);
 }
 
 static u8 Snake_KnobLevel(void)
@@ -468,7 +499,6 @@ static u8 Snake_KnobLevel(void)
 static void Snake_KnobReset(void)
 {
     knob_last_value = Snake_KnobRead();
-    knob_zone = 0;
     knob_event_latch = 0;
 }
 
@@ -493,57 +523,110 @@ static u8 Snake_KnobPopEvent(void)
     return event;
 }
 
+static void Snake_AudioUpdateWave(void)
+{
+    u8 i;
+    s32 delta;
+    u16 value;
+
+    if (audio_wave_volume == sound_volume) {
+        return;
+    }
+
+    for (i = 0; i < AUDIO_WAVE_POINTS; i++) {
+        delta = (s32)audio_sine_base[i] - AUDIO_DAC_CENTER;
+        value = (u16)(AUDIO_DAC_CENTER +
+                      (delta * sound_volume) / VOLUME_MAX);
+        audio_sine_buffer[i] = value;
+    }
+
+    audio_wave_volume = sound_volume;
+}
+
 static void Snake_AudioStop(void)
 {
-    g_snake_buzzer_enable = 0;
-    g_snake_buzzer_phase = 0;
-    BEEP(0);
+    TIM_Cmd(TIM3, DISABLE);
+    DAC_SetChannel2Data(DAC_Align_12b_R, AUDIO_DAC_CENTER);
+    audio_playing = 0;
 }
 
 static void Snake_AudioSet(u16 freq)
 {
-    u16 half_period_us;
+    u32 period;
 
-    if (freq == NOTE_REST || freq == 0) {
+    if (freq == NOTE_REST || freq == 0 || sound_volume == 0) {
         Snake_AudioStop();
         return;
     }
 
-    half_period_us = (u16)(500000UL / freq);
-    if (half_period_us < 120) {
-        half_period_us = 120;
+    Snake_AudioUpdateWave();
+
+    period = (SystemCoreClock / (AUDIO_WAVE_POINTS * (u32)freq));
+    if (period < 2) {
+        period = 2;
     }
 
-    TIM_SetAutoreload(TIM4, (u16)(half_period_us - 1));
-    TIM_SetCounter(TIM4, 0);
-    g_snake_buzzer_phase = 0;
-    g_snake_buzzer_enable = 1;
+    TIM_Cmd(TIM3, DISABLE);
+    TIM_SetAutoreload(TIM3, (u16)(period - 1));
+    TIM_SetCounter(TIM3, 0);
+    TIM_Cmd(TIM3, ENABLE);
+    audio_playing = 1;
 }
 
 static void Snake_AudioInit(void)
 {
     TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-    NVIC_InitTypeDef NVIC_InitStructure;
+    GPIO_InitTypeDef GPIO_InitStructure;
+    DAC_InitTypeDef DAC_InitStructure;
+    DMA_InitTypeDef DMA_InitStructure;
 
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
-    TIM_DeInit(TIM4);
-    TIM_InternalClockConfig(TIM4);
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC | RCC_APB1Periph_TIM3, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
+
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    Snake_AudioUpdateWave();
+
+    DMA_DeInit(DMA2_Channel4);
+    DMA_InitStructure.DMA_PeripheralBaseAddr = AUDIO_DAC_DHR12R2;
+    DMA_InitStructure.DMA_MemoryBaseAddr = (u32)audio_sine_buffer;
+    DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
+    DMA_InitStructure.DMA_BufferSize = AUDIO_WAVE_POINTS;
+    DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+    DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+    DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
+    DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
+    DMA_InitStructure.DMA_Mode = DMA_Mode_Circular;
+    DMA_InitStructure.DMA_Priority = DMA_Priority_High;
+    DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
+    DMA_Init(DMA2_Channel4, &DMA_InitStructure);
+    DMA_Cmd(DMA2_Channel4, ENABLE);
+
+    DAC_DeInit();
+    DAC_InitStructure.DAC_Trigger = DAC_Trigger_T3_TRGO;
+    DAC_InitStructure.DAC_WaveGeneration = DAC_WaveGeneration_None;
+    DAC_InitStructure.DAC_LFSRUnmask_TriangleAmplitude = DAC_LFSRUnmask_Bit0;
+    DAC_InitStructure.DAC_OutputBuffer = DAC_OutputBuffer_Disable;
+    DAC_Init(DAC_Channel_2, &DAC_InitStructure);
+    DAC_Cmd(DAC_Channel_2, ENABLE);
+    DAC_DMACmd(DAC_Channel_2, ENABLE);
+    DAC_SetChannel2Data(DAC_Align_12b_R, AUDIO_DAC_CENTER);
+
+    TIM_DeInit(TIM3);
+    TIM_InternalClockConfig(TIM3);
 
     TIM_TimeBaseStructure.TIM_Period = 1000 - 1;
-    TIM_TimeBaseStructure.TIM_Prescaler = (u16)(SystemCoreClock / 1000000UL - 1);
-    TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
+    TIM_TimeBaseStructure.TIM_Prescaler = 0;
+    TIM_TimeBaseStructure.TIM_ClockDivision = 0;
     TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
-    TIM_TimeBaseInit(TIM4, &TIM_TimeBaseStructure);
-    TIM_ARRPreloadConfig(TIM4, ENABLE);
-    TIM_ITConfig(TIM4, TIM_IT_Update, ENABLE);
+    TIM_TimeBaseInit(TIM3, &TIM_TimeBaseStructure);
+    TIM_ARRPreloadConfig(TIM3, ENABLE);
+    TIM_SelectOutputTrigger(TIM3, TIM_TRGOSource_Update);
 
-    NVIC_InitStructure.NVIC_IRQChannel = TIM4_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 3;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
-
-    TIM_Cmd(TIM4, ENABLE);
     Snake_AudioStop();
 }
 
@@ -551,10 +634,11 @@ static void Snake_PlayTone(u16 freq, u16 ms)
 {
     u16 saved_freq = music_freq;
 
-    if (ms == 0) {
+    if (ms == 0 || sound_volume == 0) {
         return;
     }
 
+    Snake_AudioUpdateWave();
     Snake_AudioSet(freq);
     Delay_ms(ms);
     Snake_AudioSet(saved_freq);
@@ -762,12 +846,90 @@ static void Snake_DrawHomePrompt(u8 visible)
     }
 }
 
+static void Snake_DrawHomeSettingsButton(void)
+{
+    LCD_Fill(132, 246, 225, 270, HOME_PANEL);
+    Snake_DrawHomeFrame(132, 246, 225, 270, HOME_TEAL);
+    Snake_ShowText(146, 253, 12, "KEY4 SETTINGS", WHITE, HOME_PANEL, 1);
+}
+
+static void Snake_DrawVolumeBar(void)
+{
+    u8 i;
+    u16 x;
+
+    LCD_Fill(42, 154, 197, 210, BLACK);
+    for (i = 0; i < VOLUME_MAX; i++) {
+        x = (u16)(50 + i * 30);
+        LCD_Fill(x, 176, (u16)(x + 20), 202,
+                 (i < sound_volume) ? HOME_GOLD : HOME_PANEL);
+        POINT_COLOR = WHITE;
+        LCD_DrawRectangle(x, 176, (u16)(x + 20), 202);
+    }
+
+    POINT_COLOR = WHITE;
+    BACK_COLOR = BLACK;
+    LCD_ShowString(78, 154, 16, (u8 *)"Volume", 0);
+    LCD_ShowNum(150, 154, sound_volume, 1, 16);
+}
+
+static void Snake_ShowSettings(void)
+{
+    u8 last_volume = 0xff;
+    u8 raw;
+
+    LCD_Clear(BLACK);
+    LCD_Fill(0, 0, LCD_W - 1, 76, HOME_NAVY);
+    Snake_ShowTextCenter(22, 16, "SETTINGS", WHITE, HOME_NAVY, 1);
+    Snake_ShowTextCenter(48, 12, "Knob changes volume", CYAN, HOME_NAVY, 1);
+    Snake_DrawVolumeBar();
+    Snake_ShowTextCenter(250, 12, "Press any key to return", LGRAY, BLACK, 1);
+
+    while (Snake_KeyReadRaw() != 0) {
+        Delay_ms(20);
+    }
+
+    while (1) {
+        sound_volume = (u8)((Snake_KnobRead() * (VOLUME_MAX + 1UL)) / 4096UL);
+        if (sound_volume > VOLUME_MAX) {
+            sound_volume = VOLUME_MAX;
+        }
+
+        if (sound_volume != last_volume) {
+            Snake_DrawVolumeBar();
+            last_volume = sound_volume;
+            Snake_AudioUpdateWave();
+            if (audio_playing && music_freq != NOTE_REST) {
+                Snake_AudioSet(music_freq);
+            }
+            if (sound_volume != 0) {
+                Snake_PlayTone(NOTE_C6, 25);
+            }
+        }
+
+        raw = Snake_KeyReadRaw();
+        if (raw != 0) {
+            while (Snake_KeyReadRaw() != 0) {
+                Delay_ms(20);
+            }
+            LCD_Clear(BLACK);
+            Snake_KeyReset();
+            Snake_KnobReset();
+            return;
+        }
+
+        Delay_ms(40);
+    }
+}
+
 static void Snake_ShowHome(void)
 {
     u8 blink = 1;
     u8 i;
     u8 selected = Snake_KnobLevel();
     u8 last_selected = 0xff;
+    u16 adc_value;
+    u8 raw_key;
 
     LCD_Clear(BLACK);
     LCD_Fill(0, 0, LCD_W - 1, 78, HOME_NAVY);
@@ -788,6 +950,7 @@ static void Snake_ShowHome(void)
 
     Snake_ShowTextCenter(250, 12, "Knob select level, key start",
                          LGRAY, BLACK, 1);
+    Snake_DrawHomeSettingsButton();
     Snake_DrawHomePrompt(blink);
     Snake_MusicSelect(music_home, MUSIC_COUNT(music_home));
 
@@ -797,13 +960,26 @@ static void Snake_ShowHome(void)
 
     while (1) {
         for (i = 0; i < 25; i++) {
-            selected = Snake_KnobLevel();
+            adc_value = Snake_KnobRead();
+            selected = (u8)(adc_value / KNOB_LEVEL_STEP);
+            if (selected >= LEVEL_COUNT) {
+                selected = LEVEL_COUNT - 1;
+            }
             if (selected != last_selected) {
                 Snake_DrawHomeLevels(selected);
                 last_selected = selected;
             }
 
-            if (Snake_KeyReadRaw() != 0) {
+            raw_key = Snake_KeyReadRaw();
+            if (raw_key & KEY_RIGHT_MASK) {
+                Snake_AudioStop();
+                Snake_ShowSettings();
+                LCD_Clear(BLACK);
+                Snake_ShowHome();
+                return;
+            }
+
+            if (raw_key != 0) {
                 Snake_Beep(60);
                 while (Snake_KeyReadRaw() != 0) {
                     Snake_MusicTick(20);
