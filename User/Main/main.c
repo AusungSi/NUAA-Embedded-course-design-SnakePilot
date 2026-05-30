@@ -13,31 +13,57 @@
 #define MUSIC_COUNT(a)  ((u8)(sizeof(a) / sizeof((a)[0])))
 
 #define NOTE_REST       0
+#define NOTE_F3         175
 #define NOTE_G3         196
+#define NOTE_A3         220
+#define NOTE_AS3        233
+#define NOTE_B3         247
 #define NOTE_C4         262
+#define NOTE_CS4        277
 #define NOTE_D4         294
+#define NOTE_DS4        311
 #define NOTE_E4         330
 #define NOTE_F4         349
+#define NOTE_FS4        370
 #define NOTE_G4         392
+#define NOTE_GS4        415
 #define NOTE_A4         440
+#define NOTE_AS4        466
 #define NOTE_B4         494
 #define NOTE_C5         523
+#define NOTE_CS5        554
 #define NOTE_D5         587
+#define NOTE_DS5        622
 #define NOTE_E5         659
 #define NOTE_F5         698
+#define NOTE_FS5        740
 #define NOTE_G5         784
+#define NOTE_GS5        831
 #define NOTE_A5         880
+#define NOTE_AS5        932
 #define NOTE_B5         988
 #define NOTE_C6         1047
+#define NOTE_CS6        1109
 #define NOTE_D6         1175
+#define NOTE_DS6        1245
 #define NOTE_E6         1319
+#define NOTE_F6         1397
+#define NOTE_FS6        1480
 #define NOTE_G6         1568
+#define NOTE_A6         1760
 
 #define KEY_UP_MASK     0x01
 #define KEY_DOWN_MASK   0x02
 #define KEY_LEFT_MASK   0x04
 #define KEY_RIGHT_MASK  0x08
 #define KEY_PAUSE_MASK  (KEY_UP_MASK | KEY_DOWN_MASK)
+
+#define KNOB_LEFT_EVENT   1
+#define KNOB_RIGHT_EVENT  2
+#define KNOB_LOW_TH       1400
+#define KNOB_HIGH_TH      2700
+#define KNOB_CENTER_LOW   1700
+#define KNOB_CENTER_HIGH  2400
 
 #define FOOD_NORMAL     0
 #define FOOD_POISON     1
@@ -52,6 +78,8 @@
 #define HOME_PANEL      0x1084
 #define HOME_TEAL       0x05B8
 #define HOME_GOLD       0xFD20
+
+#define KNOB_LEVEL_STEP (4096 / LEVEL_COUNT)
 
 typedef enum {
     DIR_UP = 0,
@@ -71,33 +99,84 @@ typedef struct {
 } LevelMusic;
 
 static const MusicNote music_level1[] = {
-    {NOTE_C5, 110}, {NOTE_E5, 110}, {NOTE_G5, 110}, {NOTE_E5, 110},
-    {NOTE_D5, 100}, {NOTE_F5, 100}, {NOTE_G5, 150}, {NOTE_REST, 60},
-    {NOTE_E5, 110}, {NOTE_G5, 110}, {NOTE_C6, 160}, {NOTE_G5, 120}
+    {NOTE_C5, 120}, {NOTE_E5, 120}, {NOTE_G5, 180}, {NOTE_E5, 120},
+    {NOTE_A4, 120}, {NOTE_C5, 120}, {NOTE_E5, 180}, {NOTE_C5, 120},
+    {NOTE_F4, 120}, {NOTE_A4, 120}, {NOTE_C5, 180}, {NOTE_A4, 120},
+    {NOTE_G4, 120}, {NOTE_B4, 120}, {NOTE_D5, 180}, {NOTE_B4, 120},
+    {NOTE_E5, 120}, {NOTE_G5, 120}, {NOTE_C6, 240}, {NOTE_B5, 120},
+    {NOTE_A5, 120}, {NOTE_G5, 120}, {NOTE_E5, 180}, {NOTE_G5, 120},
+    {NOTE_D5, 120}, {NOTE_F5, 120}, {NOTE_A5, 180}, {NOTE_F5, 120},
+    {NOTE_E5, 120}, {NOTE_D5, 120}, {NOTE_C5, 240}, {NOTE_REST, 80},
+    {NOTE_C4, 100}, {NOTE_G4, 100}, {NOTE_C5, 100}, {NOTE_E5, 160},
+    {NOTE_D4, 100}, {NOTE_A4, 100}, {NOTE_D5, 100}, {NOTE_F5, 160},
+    {NOTE_E4, 100}, {NOTE_B4, 100}, {NOTE_E5, 100}, {NOTE_G5, 160},
+    {NOTE_F4, 100}, {NOTE_C5, 100}, {NOTE_F5, 100}, {NOTE_A5, 160},
+    {NOTE_G5, 120}, {NOTE_E5, 120}, {NOTE_C5, 240}, {NOTE_REST, 120}
 };
 
 static const MusicNote music_level2[] = {
-    {NOTE_A4, 130}, {NOTE_C5, 130}, {NOTE_E5, 130}, {NOTE_A5, 150},
-    {NOTE_G5, 120}, {NOTE_E5, 120}, {NOTE_D5, 140}, {NOTE_C5, 150},
-    {NOTE_E5, 100}, {NOTE_G5, 100}, {NOTE_A5, 180}, {NOTE_REST, 80}
+    {NOTE_D4, 110}, {NOTE_A4, 110}, {NOTE_D5, 160}, {NOTE_A4, 110},
+    {NOTE_F4, 110}, {NOTE_C5, 110}, {NOTE_F5, 160}, {NOTE_C5, 110},
+    {NOTE_E4, 110}, {NOTE_B4, 110}, {NOTE_E5, 160}, {NOTE_B4, 110},
+    {NOTE_G4, 110}, {NOTE_D5, 110}, {NOTE_G5, 180}, {NOTE_REST, 60},
+    {NOTE_A5, 120}, {NOTE_G5, 120}, {NOTE_F5, 120}, {NOTE_E5, 120},
+    {NOTE_D5, 180}, {NOTE_F5, 120}, {NOTE_E5, 180}, {NOTE_C5, 120},
+    {NOTE_D5, 120}, {NOTE_A4, 120}, {NOTE_F4, 180}, {NOTE_A4, 120},
+    {NOTE_C5, 120}, {NOTE_D5, 120}, {NOTE_E5, 240}, {NOTE_REST, 80},
+    {NOTE_D4, 90}, {NOTE_F4, 90}, {NOTE_A4, 90}, {NOTE_D5, 140},
+    {NOTE_C4, 90}, {NOTE_E4, 90}, {NOTE_G4, 90}, {NOTE_C5, 140},
+    {NOTE_AS3, 90}, {NOTE_D4, 90}, {NOTE_F4, 90}, {NOTE_AS4, 140},
+    {NOTE_C4, 90}, {NOTE_E4, 90}, {NOTE_G4, 90}, {NOTE_C5, 140},
+    {NOTE_D5, 120}, {NOTE_F5, 120}, {NOTE_A5, 260}, {NOTE_REST, 120}
 };
 
 static const MusicNote music_level3[] = {
-    {NOTE_G4, 90}, {NOTE_B4, 90}, {NOTE_D5, 90}, {NOTE_G5, 160},
-    {NOTE_REST, 50}, {NOTE_D5, 90}, {NOTE_B4, 90}, {NOTE_G4, 120},
-    {NOTE_A4, 100}, {NOTE_D5, 100}, {NOTE_F5, 140}, {NOTE_E5, 140}
+    {NOTE_E5, 140}, {NOTE_B4, 90}, {NOTE_G5, 140}, {NOTE_E5, 90},
+    {NOTE_FS5, 140}, {NOTE_D5, 90}, {NOTE_A5, 180}, {NOTE_REST, 70},
+    {NOTE_D5, 140}, {NOTE_A4, 90}, {NOTE_F5, 140}, {NOTE_D5, 90},
+    {NOTE_E5, 140}, {NOTE_B4, 90}, {NOTE_G5, 200}, {NOTE_REST, 80},
+    {NOTE_B4, 100}, {NOTE_E5, 100}, {NOTE_G5, 100}, {NOTE_B5, 180},
+    {NOTE_A5, 120}, {NOTE_G5, 120}, {NOTE_FS5, 120}, {NOTE_E5, 180},
+    {NOTE_D5, 100}, {NOTE_G5, 100}, {NOTE_B5, 100}, {NOTE_D6, 180},
+    {NOTE_C6, 120}, {NOTE_B5, 120}, {NOTE_A5, 120}, {NOTE_G5, 180},
+    {NOTE_E4, 90}, {NOTE_B4, 90}, {NOTE_E5, 90}, {NOTE_G5, 150},
+    {NOTE_D4, 90}, {NOTE_A4, 90}, {NOTE_D5, 90}, {NOTE_FS5, 150},
+    {NOTE_C4, 90}, {NOTE_G4, 90}, {NOTE_C5, 90}, {NOTE_E5, 150},
+    {NOTE_B3, 90}, {NOTE_FS4, 90}, {NOTE_B4, 90}, {NOTE_D5, 150},
+    {NOTE_E5, 160}, {NOTE_G5, 160}, {NOTE_B5, 260}, {NOTE_REST, 120}
 };
 
 static const MusicNote music_level4[] = {
-    {NOTE_E5, 90}, {NOTE_REST, 30}, {NOTE_D5, 90}, {NOTE_E5, 90},
-    {NOTE_G5, 120}, {NOTE_F5, 120}, {NOTE_D5, 100}, {NOTE_B4, 120},
-    {NOTE_C5, 100}, {NOTE_E5, 100}, {NOTE_A5, 160}, {NOTE_G5, 160}
+    {NOTE_A4, 80}, {NOTE_REST, 30}, {NOTE_C5, 80}, {NOTE_E5, 80},
+    {NOTE_G5, 120}, {NOTE_E5, 80}, {NOTE_C5, 80}, {NOTE_A4, 120},
+    {NOTE_GS4, 80}, {NOTE_B4, 80}, {NOTE_E5, 120}, {NOTE_B4, 80},
+    {NOTE_A4, 80}, {NOTE_C5, 80}, {NOTE_E5, 180}, {NOTE_REST, 60},
+    {NOTE_C5, 90}, {NOTE_E5, 90}, {NOTE_A5, 150}, {NOTE_G5, 90},
+    {NOTE_E5, 90}, {NOTE_D5, 90}, {NOTE_C5, 150}, {NOTE_E5, 90},
+    {NOTE_B4, 90}, {NOTE_D5, 90}, {NOTE_G5, 150}, {NOTE_F5, 90},
+    {NOTE_D5, 90}, {NOTE_C5, 90}, {NOTE_B4, 180}, {NOTE_REST, 80},
+    {NOTE_A3, 80}, {NOTE_E4, 80}, {NOTE_A4, 80}, {NOTE_C5, 130},
+    {NOTE_G3, 80}, {NOTE_D4, 80}, {NOTE_G4, 80}, {NOTE_B4, 130},
+    {NOTE_F3, 80}, {NOTE_C4, 80}, {NOTE_F4, 80}, {NOTE_A4, 130},
+    {NOTE_E4, 80}, {NOTE_GS4, 80}, {NOTE_B4, 80}, {NOTE_E5, 160},
+    {NOTE_A5, 120}, {NOTE_E5, 120}, {NOTE_C5, 220}, {NOTE_REST, 120}
 };
 
 static const MusicNote music_level5[] = {
-    {NOTE_C5, 90}, {NOTE_G5, 90}, {NOTE_A5, 90}, {NOTE_E5, 90},
-    {NOTE_F5, 100}, {NOTE_A5, 100}, {NOTE_C6, 150}, {NOTE_D6, 120},
-    {NOTE_E6, 120}, {NOTE_D6, 100}, {NOTE_C6, 170}, {NOTE_G6, 190}
+    {NOTE_C5, 80}, {NOTE_G5, 80}, {NOTE_C6, 120}, {NOTE_G5, 80},
+    {NOTE_D5, 80}, {NOTE_A5, 80}, {NOTE_D6, 120}, {NOTE_A5, 80},
+    {NOTE_E5, 80}, {NOTE_B5, 80}, {NOTE_E6, 130}, {NOTE_D6, 80},
+    {NOTE_C6, 80}, {NOTE_B5, 80}, {NOTE_A5, 180}, {NOTE_REST, 50},
+    {NOTE_F5, 80}, {NOTE_C6, 80}, {NOTE_F6, 130}, {NOTE_E6, 80},
+    {NOTE_D6, 80}, {NOTE_C6, 80}, {NOTE_B5, 150}, {NOTE_G5, 80},
+    {NOTE_A5, 80}, {NOTE_E6, 80}, {NOTE_A6, 160}, {NOTE_G6, 90},
+    {NOTE_E6, 90}, {NOTE_D6, 90}, {NOTE_C6, 220}, {NOTE_REST, 70},
+    {NOTE_C4, 70}, {NOTE_G4, 70}, {NOTE_C5, 70}, {NOTE_E5, 110},
+    {NOTE_D4, 70}, {NOTE_A4, 70}, {NOTE_D5, 70}, {NOTE_FS5, 110},
+    {NOTE_E4, 70}, {NOTE_B4, 70}, {NOTE_E5, 70}, {NOTE_G5, 110},
+    {NOTE_F4, 70}, {NOTE_C5, 70}, {NOTE_F5, 70}, {NOTE_A5, 110},
+    {NOTE_G5, 80}, {NOTE_A5, 80}, {NOTE_B5, 80}, {NOTE_C6, 160},
+    {NOTE_D6, 80}, {NOTE_E6, 80}, {NOTE_G6, 220}, {NOTE_REST, 120}
 };
 
 static const LevelMusic level_music[LEVEL_COUNT] = {
@@ -269,6 +348,7 @@ static u8 time_left;
 static u16 time_acc_ms;
 static u8 music_index;
 static u16 music_left_ms;
+static u16 music_gap_ms;
 static u16 music_freq;
 static u32 rng_state = 0x13572468;
 static SnakeDir dir;
@@ -277,10 +357,16 @@ static u8 key_last_raw;
 static u8 key_stable;
 static u8 key_stable_count;
 static u8 key_press_latch;
+static u8 knob_zone;
+static u8 knob_event_latch;
 static u8 turn_pending;
 static u8 paused;
 static u8 pause_lock;
+static u8 start_level;
 static const char *status_msg = "READY";
+
+volatile u8 g_snake_buzzer_enable = 0;
+volatile u8 g_snake_buzzer_phase = 0;
 
 static u16 Snake_Rand(u16 max)
 {
@@ -329,53 +415,183 @@ static void Snake_KeyScan(void)
     }
 }
 
-static void Snake_DelayUs(u32 us)
+static void Snake_ADCConfiguration(void)
 {
-    u32 i;
+    GPIO_InitTypeDef GPIO_InitStructure;
+    ADC_InitTypeDef ADC_InitStructure;
 
-    for (i = 0; i < us * 8UL; i++) {
-        __NOP();
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_ADC1, ENABLE);
+    RCC_ADCCLKConfig(RCC_PCLK2_Div6);
+
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    ADC_DeInit(ADC1);
+    ADC_InitStructure.ADC_Mode = ADC_Mode_Independent;
+    ADC_InitStructure.ADC_ScanConvMode = DISABLE;
+    ADC_InitStructure.ADC_ContinuousConvMode = DISABLE;
+    ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_None;
+    ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
+    ADC_InitStructure.ADC_NbrOfChannel = 1;
+    ADC_Init(ADC1, &ADC_InitStructure);
+
+    ADC_Cmd(ADC1, ENABLE);
+    ADC_ResetCalibration(ADC1);
+    while (ADC_GetResetCalibrationStatus(ADC1)) {
     }
+    ADC_StartCalibration(ADC1);
+    while (ADC_GetCalibrationStatus(ADC1)) {
+    }
+}
+
+static u16 Snake_KnobRead(void)
+{
+    u8 i;
+    u32 sum = 0;
+
+    for (i = 0; i < 4; i++) {
+        ADC_RegularChannelConfig(ADC1, ADC_Channel_3, 1,
+                                 ADC_SampleTime_55Cycles5);
+        ADC_SoftwareStartConvCmd(ADC1, ENABLE);
+        while (ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == RESET) {
+        }
+        sum += ADC_GetConversionValue(ADC1);
+    }
+
+    return (u16)(sum / 4);
+}
+
+static u8 Snake_KnobLevel(void)
+{
+    u8 lv = (u8)(Snake_KnobRead() / KNOB_LEVEL_STEP);
+
+    if (lv >= LEVEL_COUNT) {
+        lv = LEVEL_COUNT - 1;
+    }
+
+    return lv;
+}
+
+static void Snake_KnobReset(void)
+{
+    u16 value = Snake_KnobRead();
+
+    if (value < KNOB_LOW_TH) {
+        knob_zone = KNOB_LEFT_EVENT;
+    } else if (value > KNOB_HIGH_TH) {
+        knob_zone = KNOB_RIGHT_EVENT;
+    } else {
+        knob_zone = 0;
+    }
+
+    knob_event_latch = 0;
+}
+
+static void Snake_KnobScan(void)
+{
+    u16 value = Snake_KnobRead();
+    u8 new_zone = knob_zone;
+
+    if (knob_zone == 0) {
+        if (value < KNOB_LOW_TH) {
+            new_zone = KNOB_LEFT_EVENT;
+        } else if (value > KNOB_HIGH_TH) {
+            new_zone = KNOB_RIGHT_EVENT;
+        }
+    } else if (value >= KNOB_CENTER_LOW && value <= KNOB_CENTER_HIGH) {
+        new_zone = 0;
+    }
+
+    if (knob_zone == 0 && new_zone != 0) {
+        knob_event_latch = new_zone;
+    }
+
+    knob_zone = new_zone;
+}
+
+static u8 Snake_KnobPopEvent(void)
+{
+    u8 event = knob_event_latch;
+
+    knob_event_latch = 0;
+    return event;
+}
+
+static void Snake_AudioStop(void)
+{
+    g_snake_buzzer_enable = 0;
+    g_snake_buzzer_phase = 0;
+    BEEP(0);
+}
+
+static void Snake_AudioSet(u16 freq)
+{
+    u16 half_period_us;
+
+    if (freq == NOTE_REST || freq == 0) {
+        Snake_AudioStop();
+        return;
+    }
+
+    half_period_us = (u16)(500000UL / freq);
+    if (half_period_us < 120) {
+        half_period_us = 120;
+    }
+
+    TIM_SetAutoreload(TIM4, (u16)(half_period_us - 1));
+    TIM_SetCounter(TIM4, 0);
+    g_snake_buzzer_phase = 0;
+    g_snake_buzzer_enable = 1;
+}
+
+static void Snake_AudioInit(void)
+{
+    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
+    TIM_DeInit(TIM4);
+    TIM_InternalClockConfig(TIM4);
+
+    TIM_TimeBaseStructure.TIM_Period = 1000 - 1;
+    TIM_TimeBaseStructure.TIM_Prescaler = (u16)(SystemCoreClock / 1000000UL - 1);
+    TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
+    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+    TIM_TimeBaseInit(TIM4, &TIM_TimeBaseStructure);
+    TIM_ARRPreloadConfig(TIM4, ENABLE);
+    TIM_ITConfig(TIM4, TIM_IT_Update, ENABLE);
+
+    NVIC_InitStructure.NVIC_IRQChannel = TIM4_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 3;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+
+    TIM_Cmd(TIM4, ENABLE);
+    Snake_AudioStop();
 }
 
 static void Snake_PlayTone(u16 freq, u16 ms)
 {
-    u16 half_period_us;
-    u32 elapsed_us;
-    u32 target_us;
+    u16 saved_freq = music_freq;
 
     if (ms == 0) {
         return;
     }
 
-    if (freq == NOTE_REST) {
-        BEEP(0);
-        Delay_ms(ms);
-        return;
-    }
-
-    half_period_us = (u16)(500000UL / freq);
-    if (half_period_us < 80) {
-        half_period_us = 80;
-    }
-
-    elapsed_us = 0;
-    target_us = (u32)ms * 1000UL;
-    while (elapsed_us < target_us) {
-        BEEP(1);
-        Snake_DelayUs(half_period_us);
-        BEEP(0);
-        Snake_DelayUs(half_period_us);
-        elapsed_us += (u32)half_period_us * 2UL;
-    }
-    BEEP(0);
+    Snake_AudioSet(freq);
+    Delay_ms(ms);
+    Snake_AudioSet(saved_freq);
 }
 
 static void Snake_MusicReset(void)
 {
     music_index = 0;
     music_left_ms = 0;
+    music_gap_ms = 0;
     music_freq = NOTE_REST;
+    Snake_AudioStop();
 }
 
 static void Snake_MusicLoadNextNote(void)
@@ -385,11 +601,18 @@ static void Snake_MusicLoadNextNote(void)
     if (music->count == 0) {
         music_freq = NOTE_REST;
         music_left_ms = 80;
+        music_gap_ms = 0;
+        Snake_AudioStop();
         return;
     }
 
     music_freq = music->notes[music_index].freq;
     music_left_ms = music->notes[music_index].ms;
+    music_gap_ms = 0;
+    if (music_freq != NOTE_REST) {
+        music_gap_ms = (music_left_ms >= 120) ? 14 : 8;
+    }
+    Snake_AudioSet(music_freq);
     music_index++;
     if (music_index >= music->count) {
         music_index = 0;
@@ -414,7 +637,10 @@ static void Snake_MusicTick(u16 ms)
             chunk = music_left_ms;
         }
 
-        Snake_PlayTone(music_freq, chunk);
+        if (music_gap_ms != 0 && music_left_ms <= music_gap_ms) {
+            Snake_AudioStop();
+        }
+        Delay_ms(chunk);
         music_left_ms = (u16)(music_left_ms - chunk);
         ms = (u16)(ms - chunk);
     }
@@ -504,7 +730,7 @@ static void Snake_DrawHomeSnake(void)
     LCD_Fill(170, 98, 172, 100, BLACK);
 }
 
-static void Snake_DrawHomeLevels(void)
+static void Snake_DrawHomeLevels(u8 selected)
 {
     u8 i;
     u16 x;
@@ -537,6 +763,9 @@ static void Snake_DrawHomeLevels(void)
         POINT_COLOR = BLACK;
         LCD_ShowNum((u16)(x + 8), 204, (u32)(i + 1), 1, 16);
     }
+
+    x = (u16)(30 + selected * 36);
+    Snake_DrawHomeFrame((u16)(x - 4), 196, (u16)(x + 28), 226, HOME_GOLD);
 }
 
 static void Snake_DrawHomePrompt(u8 visible)
@@ -553,6 +782,8 @@ static void Snake_ShowHome(void)
 {
     u8 blink = 1;
     u8 i;
+    u8 selected = Snake_KnobLevel();
+    u8 last_selected = 0xff;
 
     LCD_Clear(BLACK);
     LCD_Fill(0, 0, LCD_W - 1, 78, HOME_NAVY);
@@ -569,9 +800,9 @@ static void Snake_ShowHome(void)
     Snake_DrawHomeAuthor(61);
 
     Snake_DrawHomeSnake();
-    Snake_DrawHomeLevels();
+    Snake_DrawHomeLevels(selected);
 
-    Snake_ShowTextCenter(250, 12, "K1/K2/K3/K4  Control Direction",
+    Snake_ShowTextCenter(250, 12, "Knob select level, key start",
                          LGRAY, BLACK, 1);
     Snake_DrawHomePrompt(blink);
 
@@ -581,11 +812,18 @@ static void Snake_ShowHome(void)
 
     while (1) {
         for (i = 0; i < 25; i++) {
+            selected = Snake_KnobLevel();
+            if (selected != last_selected) {
+                Snake_DrawHomeLevels(selected);
+                last_selected = selected;
+            }
+
             if (Snake_KeyReadRaw() != 0) {
                 Snake_Beep(60);
                 while (Snake_KeyReadRaw() != 0) {
                     Delay_ms(20);
                 }
+                start_level = selected;
                 Delay_ms(120);
                 LCD_Clear(BLACK);
                 Snake_KeyReset();
@@ -754,6 +992,8 @@ static void Snake_ShowCenter(const char *line1, const char *line2)
 
 static void Snake_WaitAnyKey(void)
 {
+    Snake_AudioStop();
+
     while (Snake_KeyReadRaw() != 0) {
         Delay_ms(20);
     }
@@ -828,6 +1068,7 @@ static void Snake_ResetSnake(void)
     snake_y[3] = 10;
 
     Snake_KeyReset();
+    Snake_KnobReset();
     Snake_ShowDirection();
 }
 
@@ -848,7 +1089,7 @@ static void Snake_StartGame(void)
 {
     score = 0;
     lives = 3;
-    Snake_StartLevel(0);
+    Snake_StartLevel(start_level);
 }
 
 static SnakeDir Snake_KeyToDir(u8 key_bit)
@@ -857,6 +1098,21 @@ static SnakeDir Snake_KeyToDir(u8 key_bit)
     if (key_bit == KEY_DOWN_MASK) return DIR_DOWN;
     if (key_bit == KEY_LEFT_MASK) return DIR_LEFT;
     return DIR_RIGHT;
+}
+
+static SnakeDir Snake_RelativeTurn(SnakeDir base, u8 knob_event)
+{
+    if (knob_event == KNOB_LEFT_EVENT) {
+        if (base == DIR_UP) return DIR_LEFT;
+        if (base == DIR_DOWN) return DIR_RIGHT;
+        if (base == DIR_LEFT) return DIR_DOWN;
+        return DIR_UP;
+    }
+
+    if (base == DIR_UP) return DIR_RIGHT;
+    if (base == DIR_DOWN) return DIR_LEFT;
+    if (base == DIR_LEFT) return DIR_UP;
+    return DIR_DOWN;
 }
 
 static u8 Snake_PopDirectionKey(void)
@@ -883,15 +1139,24 @@ static u8 Snake_PopDirectionKey(void)
 static void Snake_HandleInput(void)
 {
     u8 key;
+    u8 knob_event;
+    u8 next_level;
     SnakeDir want;
 
     Snake_KeyScan();
+    Snake_KnobScan();
+    knob_event = Snake_KnobPopEvent();
 
     if ((key_stable & KEY_PAUSE_MASK) == KEY_PAUSE_MASK) {
         if (!pause_lock) {
             paused = (u8)!paused;
             pause_lock = 1;
             key_press_latch = 0;
+            if (paused) {
+                Snake_AudioStop();
+            } else if (music_left_ms != 0) {
+                Snake_AudioSet(music_freq);
+            }
             Snake_SetStatus(paused ? "PAUSED" : "RUNNING");
             Snake_DrawHeader();
             Snake_Beep(35);
@@ -901,10 +1166,33 @@ static void Snake_HandleInput(void)
 
     pause_lock = 0;
     if (paused) {
+        if (knob_event != 0) {
+            if (knob_event == KNOB_LEFT_EVENT) {
+                next_level = (level_index == 0) ? (LEVEL_COUNT - 1) : (level_index - 1);
+            } else {
+                next_level = (u8)((level_index + 1) % LEVEL_COUNT);
+            }
+
+            Snake_StartLevel(next_level);
+            paused = 1;
+            Snake_AudioStop();
+            Snake_SetStatus("KNOB LEVEL");
+            Snake_DrawHeader();
+            Snake_Beep(35);
+        }
         return;
     }
 
     if (turn_pending) {
+        return;
+    }
+
+    if (knob_event != 0) {
+        want = Snake_RelativeTurn(next_dir, knob_event);
+        next_dir = want;
+        turn_pending = 1;
+        Snake_SetStatus(knob_event == KNOB_LEFT_EVENT ? "KNOB LEFT" : "KNOB RIGHT");
+        Snake_DrawHeader();
         return;
     }
 
@@ -1175,6 +1463,8 @@ int main(void)
 
     SystemInit();
     GPIO_Configuration();
+    Snake_ADCConfiguration();
+    Snake_AudioInit();
     LCD_Init();
     LCD_Clear(BLACK);
     BEEP(0);
