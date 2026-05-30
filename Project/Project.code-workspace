@@ -1,9 +1,12 @@
 {
     "folders":  [
-                    {
-                        "path":  "C:\\EIDE\\SnakePilot\\Project"
-                    }
-                ],
+        {
+            "path": "C:\\EIDE\\SnakePilot\\Project"
+        },
+        {
+            "path": "../../嵌入式系统实验实际例程202003更新"
+        }
+    ],
     "settings":  {
                      "terminal.integrated.shellIntegration.enabled":  false,
                      "EIDE.ARM.INI.Path":  "C:\\Keil_v5\\TOOLS.INI",
