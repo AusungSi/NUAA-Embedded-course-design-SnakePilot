@@ -23,6 +23,13 @@
             "problemMatcher": []
         },
         {
+            "label": "flash recover stlink",
+            "type": "shell",
+            "command": "chcp 437 && \"C:\\Users\\Dengdeng\\AppData\\Local\\stm32cube\\bundles\\programmer\\2.22.0+st.1\\bin\\STM32_Programmer_CLI.exe\" -c port=SWD freq=100 mode=UR reset=HWrst --download .\\build\\Debug\\Project.hex -v --go",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
             "label": "rebuild",
             "type": "shell",
             "command": "${command:eide.project.rebuild}",

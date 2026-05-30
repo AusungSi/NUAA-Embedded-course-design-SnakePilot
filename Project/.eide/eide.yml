@@ -196,7 +196,7 @@ targets:
         optionBytes: .eide/debug.st.option.bytes.ini
         otherCmds: ""
         proType: SWD
-        resetMode: default
+        resetMode: HWrst
         runAfterProgram: true
-        speed: 4000
+        speed: 100
     uploader: STLink
