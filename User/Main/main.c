@@ -64,6 +64,7 @@
 #define KNOB_HIGH_TH      2700
 #define KNOB_CENTER_LOW   1700
 #define KNOB_CENTER_HIGH  2400
+#define KNOB_TURN_DELTA   420
 
 #define FOOD_NORMAL     0
 #define FOOD_POISON     1
@@ -99,84 +100,69 @@ typedef struct {
 } LevelMusic;
 
 static const MusicNote music_level1[] = {
-    {NOTE_C5, 120}, {NOTE_E5, 120}, {NOTE_G5, 180}, {NOTE_E5, 120},
-    {NOTE_A4, 120}, {NOTE_C5, 120}, {NOTE_E5, 180}, {NOTE_C5, 120},
-    {NOTE_F4, 120}, {NOTE_A4, 120}, {NOTE_C5, 180}, {NOTE_A4, 120},
-    {NOTE_G4, 120}, {NOTE_B4, 120}, {NOTE_D5, 180}, {NOTE_B4, 120},
-    {NOTE_E5, 120}, {NOTE_G5, 120}, {NOTE_C6, 240}, {NOTE_B5, 120},
-    {NOTE_A5, 120}, {NOTE_G5, 120}, {NOTE_E5, 180}, {NOTE_G5, 120},
-    {NOTE_D5, 120}, {NOTE_F5, 120}, {NOTE_A5, 180}, {NOTE_F5, 120},
-    {NOTE_E5, 120}, {NOTE_D5, 120}, {NOTE_C5, 240}, {NOTE_REST, 80},
-    {NOTE_C4, 100}, {NOTE_G4, 100}, {NOTE_C5, 100}, {NOTE_E5, 160},
-    {NOTE_D4, 100}, {NOTE_A4, 100}, {NOTE_D5, 100}, {NOTE_F5, 160},
-    {NOTE_E4, 100}, {NOTE_B4, 100}, {NOTE_E5, 100}, {NOTE_G5, 160},
-    {NOTE_F4, 100}, {NOTE_C5, 100}, {NOTE_F5, 100}, {NOTE_A5, 160},
-    {NOTE_G5, 120}, {NOTE_E5, 120}, {NOTE_C5, 240}, {NOTE_REST, 120}
+    {NOTE_C4, 360}, {NOTE_G4, 220}, {NOTE_C5, 460}, {NOTE_E5, 260},
+    {NOTE_D5, 180}, {NOTE_C5, 460}, {NOTE_REST, 90},
+    {NOTE_A3, 340}, {NOTE_E4, 220}, {NOTE_A4, 420}, {NOTE_C5, 260},
+    {NOTE_B4, 180}, {NOTE_A4, 420}, {NOTE_REST, 90},
+    {NOTE_F4, 360}, {NOTE_C5, 220}, {NOTE_E5, 420}, {NOTE_D5, 200},
+    {NOTE_C5, 360}, {NOTE_G4, 300}, {NOTE_REST, 100},
+    {NOTE_G3, 300}, {NOTE_D4, 180}, {NOTE_G4, 260}, {NOTE_B4, 380},
+    {NOTE_D5, 240}, {NOTE_C5, 520}, {NOTE_REST, 140}
 };
 
 static const MusicNote music_level2[] = {
-    {NOTE_D4, 110}, {NOTE_A4, 110}, {NOTE_D5, 160}, {NOTE_A4, 110},
-    {NOTE_F4, 110}, {NOTE_C5, 110}, {NOTE_F5, 160}, {NOTE_C5, 110},
-    {NOTE_E4, 110}, {NOTE_B4, 110}, {NOTE_E5, 160}, {NOTE_B4, 110},
-    {NOTE_G4, 110}, {NOTE_D5, 110}, {NOTE_G5, 180}, {NOTE_REST, 60},
-    {NOTE_A5, 120}, {NOTE_G5, 120}, {NOTE_F5, 120}, {NOTE_E5, 120},
-    {NOTE_D5, 180}, {NOTE_F5, 120}, {NOTE_E5, 180}, {NOTE_C5, 120},
-    {NOTE_D5, 120}, {NOTE_A4, 120}, {NOTE_F4, 180}, {NOTE_A4, 120},
-    {NOTE_C5, 120}, {NOTE_D5, 120}, {NOTE_E5, 240}, {NOTE_REST, 80},
-    {NOTE_D4, 90}, {NOTE_F4, 90}, {NOTE_A4, 90}, {NOTE_D5, 140},
-    {NOTE_C4, 90}, {NOTE_E4, 90}, {NOTE_G4, 90}, {NOTE_C5, 140},
-    {NOTE_AS3, 90}, {NOTE_D4, 90}, {NOTE_F4, 90}, {NOTE_AS4, 140},
-    {NOTE_C4, 90}, {NOTE_E4, 90}, {NOTE_G4, 90}, {NOTE_C5, 140},
-    {NOTE_D5, 120}, {NOTE_F5, 120}, {NOTE_A5, 260}, {NOTE_REST, 120}
+    {NOTE_D4, 420}, {NOTE_A4, 240}, {NOTE_D5, 420}, {NOTE_C5, 220},
+    {NOTE_AS4, 360}, {NOTE_A4, 320}, {NOTE_REST, 100},
+    {NOTE_F4, 380}, {NOTE_C5, 220}, {NOTE_F5, 380}, {NOTE_E5, 180},
+    {NOTE_D5, 420}, {NOTE_A4, 300}, {NOTE_REST, 100},
+    {NOTE_G4, 300}, {NOTE_D5, 220}, {NOTE_G5, 460}, {NOTE_F5, 220},
+    {NOTE_E5, 340}, {NOTE_C5, 300}, {NOTE_REST, 90},
+    {NOTE_AS3, 280}, {NOTE_F4, 180}, {NOTE_AS4, 260}, {NOTE_D5, 380},
+    {NOTE_C5, 240}, {NOTE_D5, 560}, {NOTE_REST, 140}
 };
 
 static const MusicNote music_level3[] = {
-    {NOTE_E5, 140}, {NOTE_B4, 90}, {NOTE_G5, 140}, {NOTE_E5, 90},
-    {NOTE_FS5, 140}, {NOTE_D5, 90}, {NOTE_A5, 180}, {NOTE_REST, 70},
-    {NOTE_D5, 140}, {NOTE_A4, 90}, {NOTE_F5, 140}, {NOTE_D5, 90},
-    {NOTE_E5, 140}, {NOTE_B4, 90}, {NOTE_G5, 200}, {NOTE_REST, 80},
-    {NOTE_B4, 100}, {NOTE_E5, 100}, {NOTE_G5, 100}, {NOTE_B5, 180},
-    {NOTE_A5, 120}, {NOTE_G5, 120}, {NOTE_FS5, 120}, {NOTE_E5, 180},
-    {NOTE_D5, 100}, {NOTE_G5, 100}, {NOTE_B5, 100}, {NOTE_D6, 180},
-    {NOTE_C6, 120}, {NOTE_B5, 120}, {NOTE_A5, 120}, {NOTE_G5, 180},
-    {NOTE_E4, 90}, {NOTE_B4, 90}, {NOTE_E5, 90}, {NOTE_G5, 150},
-    {NOTE_D4, 90}, {NOTE_A4, 90}, {NOTE_D5, 90}, {NOTE_FS5, 150},
-    {NOTE_C4, 90}, {NOTE_G4, 90}, {NOTE_C5, 90}, {NOTE_E5, 150},
-    {NOTE_B3, 90}, {NOTE_FS4, 90}, {NOTE_B4, 90}, {NOTE_D5, 150},
-    {NOTE_E5, 160}, {NOTE_G5, 160}, {NOTE_B5, 260}, {NOTE_REST, 120}
+    {NOTE_E4, 420}, {NOTE_B4, 220}, {NOTE_G5, 500}, {NOTE_FS5, 180},
+    {NOTE_E5, 360}, {NOTE_D5, 340}, {NOTE_REST, 100},
+    {NOTE_C4, 380}, {NOTE_G4, 220}, {NOTE_E5, 440}, {NOTE_D5, 180},
+    {NOTE_B4, 340}, {NOTE_G4, 300}, {NOTE_REST, 80},
+    {NOTE_B3, 320}, {NOTE_FS4, 220}, {NOTE_D5, 460}, {NOTE_E5, 220},
+    {NOTE_FS5, 320}, {NOTE_G5, 480}, {NOTE_REST, 120},
+    {NOTE_E4, 260}, {NOTE_G4, 180}, {NOTE_B4, 260}, {NOTE_E5, 380},
+    {NOTE_D5, 220}, {NOTE_B4, 540}, {NOTE_REST, 140}
 };
 
 static const MusicNote music_level4[] = {
-    {NOTE_A4, 80}, {NOTE_REST, 30}, {NOTE_C5, 80}, {NOTE_E5, 80},
-    {NOTE_G5, 120}, {NOTE_E5, 80}, {NOTE_C5, 80}, {NOTE_A4, 120},
-    {NOTE_GS4, 80}, {NOTE_B4, 80}, {NOTE_E5, 120}, {NOTE_B4, 80},
-    {NOTE_A4, 80}, {NOTE_C5, 80}, {NOTE_E5, 180}, {NOTE_REST, 60},
-    {NOTE_C5, 90}, {NOTE_E5, 90}, {NOTE_A5, 150}, {NOTE_G5, 90},
-    {NOTE_E5, 90}, {NOTE_D5, 90}, {NOTE_C5, 150}, {NOTE_E5, 90},
-    {NOTE_B4, 90}, {NOTE_D5, 90}, {NOTE_G5, 150}, {NOTE_F5, 90},
-    {NOTE_D5, 90}, {NOTE_C5, 90}, {NOTE_B4, 180}, {NOTE_REST, 80},
-    {NOTE_A3, 80}, {NOTE_E4, 80}, {NOTE_A4, 80}, {NOTE_C5, 130},
-    {NOTE_G3, 80}, {NOTE_D4, 80}, {NOTE_G4, 80}, {NOTE_B4, 130},
-    {NOTE_F3, 80}, {NOTE_C4, 80}, {NOTE_F4, 80}, {NOTE_A4, 130},
-    {NOTE_E4, 80}, {NOTE_GS4, 80}, {NOTE_B4, 80}, {NOTE_E5, 160},
-    {NOTE_A5, 120}, {NOTE_E5, 120}, {NOTE_C5, 220}, {NOTE_REST, 120}
+    {NOTE_A3, 260}, {NOTE_E4, 180}, {NOTE_A4, 360}, {NOTE_C5, 180},
+    {NOTE_E5, 280}, {NOTE_D5, 180}, {NOTE_C5, 360}, {NOTE_REST, 80},
+    {NOTE_G3, 260}, {NOTE_D4, 180}, {NOTE_G4, 340}, {NOTE_B4, 180},
+    {NOTE_D5, 300}, {NOTE_C5, 180}, {NOTE_B4, 360}, {NOTE_REST, 80},
+    {NOTE_F3, 240}, {NOTE_C4, 180}, {NOTE_F4, 280}, {NOTE_A4, 240},
+    {NOTE_C5, 420}, {NOTE_B4, 180}, {NOTE_GS4, 320},
+    {NOTE_E4, 240}, {NOTE_GS4, 160}, {NOTE_B4, 240}, {NOTE_E5, 460},
+    {NOTE_D5, 200}, {NOTE_C5, 560}, {NOTE_REST, 140}
 };
 
 static const MusicNote music_level5[] = {
-    {NOTE_C5, 80}, {NOTE_G5, 80}, {NOTE_C6, 120}, {NOTE_G5, 80},
-    {NOTE_D5, 80}, {NOTE_A5, 80}, {NOTE_D6, 120}, {NOTE_A5, 80},
-    {NOTE_E5, 80}, {NOTE_B5, 80}, {NOTE_E6, 130}, {NOTE_D6, 80},
-    {NOTE_C6, 80}, {NOTE_B5, 80}, {NOTE_A5, 180}, {NOTE_REST, 50},
-    {NOTE_F5, 80}, {NOTE_C6, 80}, {NOTE_F6, 130}, {NOTE_E6, 80},
-    {NOTE_D6, 80}, {NOTE_C6, 80}, {NOTE_B5, 150}, {NOTE_G5, 80},
-    {NOTE_A5, 80}, {NOTE_E6, 80}, {NOTE_A6, 160}, {NOTE_G6, 90},
-    {NOTE_E6, 90}, {NOTE_D6, 90}, {NOTE_C6, 220}, {NOTE_REST, 70},
-    {NOTE_C4, 70}, {NOTE_G4, 70}, {NOTE_C5, 70}, {NOTE_E5, 110},
-    {NOTE_D4, 70}, {NOTE_A4, 70}, {NOTE_D5, 70}, {NOTE_FS5, 110},
-    {NOTE_E4, 70}, {NOTE_B4, 70}, {NOTE_E5, 70}, {NOTE_G5, 110},
-    {NOTE_F4, 70}, {NOTE_C5, 70}, {NOTE_F5, 70}, {NOTE_A5, 110},
-    {NOTE_G5, 80}, {NOTE_A5, 80}, {NOTE_B5, 80}, {NOTE_C6, 160},
-    {NOTE_D6, 80}, {NOTE_E6, 80}, {NOTE_G6, 220}, {NOTE_REST, 120}
+    {NOTE_C4, 220}, {NOTE_REST, 60}, {NOTE_C4, 220}, {NOTE_G3, 360},
+    {NOTE_DS4, 420}, {NOTE_D4, 260}, {NOTE_C4, 520}, {NOTE_REST, 120},
+    {NOTE_C4, 180}, {NOTE_REST, 50}, {NOTE_C4, 180}, {NOTE_G3, 300},
+    {NOTE_F4, 360}, {NOTE_DS4, 240}, {NOTE_D4, 520}, {NOTE_REST, 100},
+    {NOTE_G3, 240}, {NOTE_C4, 240}, {NOTE_G4, 460}, {NOTE_FS4, 180},
+    {NOTE_F4, 300}, {NOTE_DS4, 260}, {NOTE_C4, 560}, {NOTE_REST, 120},
+    {NOTE_C5, 180}, {NOTE_B4, 160}, {NOTE_AS4, 260}, {NOTE_G4, 340},
+    {NOTE_DS5, 280}, {NOTE_D5, 260}, {NOTE_C5, 640}, {NOTE_REST, 160}
+};
+
+static const MusicNote music_home[] = {
+    {NOTE_E4, 620}, {NOTE_REST, 80}, {NOTE_B3, 420}, {NOTE_E4, 620},
+    {NOTE_G4, 720}, {NOTE_FS4, 360}, {NOTE_D4, 560}, {NOTE_REST, 140},
+    {NOTE_C4, 520}, {NOTE_G3, 420}, {NOTE_B3, 560}, {NOTE_E4, 820},
+    {NOTE_REST, 160},
+    {NOTE_A3, 560}, {NOTE_E4, 360}, {NOTE_C5, 640}, {NOTE_B4, 300},
+    {NOTE_G4, 620}, {NOTE_FS4, 360}, {NOTE_E4, 760}, {NOTE_REST, 160},
+    {NOTE_D4, 520}, {NOTE_A3, 380}, {NOTE_D5, 620}, {NOTE_C5, 360},
+    {NOTE_B4, 760}, {NOTE_G4, 420}, {NOTE_E4, 900}, {NOTE_REST, 220}
 };
 
 static const LevelMusic level_music[LEVEL_COUNT] = {
@@ -346,6 +332,8 @@ static u8 level_index;
 static u8 level_score;
 static u8 time_left;
 static u16 time_acc_ms;
+static const MusicNote *music_notes;
+static u8 music_count;
 static u8 music_index;
 static u16 music_left_ms;
 static u16 music_gap_ms;
@@ -359,6 +347,7 @@ static u8 key_stable_count;
 static u8 key_press_latch;
 static u8 knob_zone;
 static u8 knob_event_latch;
+static u16 knob_last_value;
 static u8 turn_pending;
 static u8 paused;
 static u8 pause_lock;
@@ -420,10 +409,12 @@ static void Snake_ADCConfiguration(void)
     GPIO_InitTypeDef GPIO_InitStructure;
     ADC_InitTypeDef ADC_InitStructure;
 
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_ADC1, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO |
+                           RCC_APB2Periph_ADC1, ENABLE);
     RCC_ADCCLKConfig(RCC_PCLK2_Div6);
 
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 
@@ -443,6 +434,7 @@ static void Snake_ADCConfiguration(void)
     ADC_StartCalibration(ADC1);
     while (ADC_GetCalibrationStatus(ADC1)) {
     }
+    ADC_SoftwareStartConvCmd(ADC1, ENABLE);
 }
 
 static u16 Snake_KnobRead(void)
@@ -452,7 +444,7 @@ static u16 Snake_KnobRead(void)
 
     for (i = 0; i < 4; i++) {
         ADC_RegularChannelConfig(ADC1, ADC_Channel_3, 1,
-                                 ADC_SampleTime_55Cycles5);
+                                 ADC_SampleTime_239Cycles5);
         ADC_SoftwareStartConvCmd(ADC1, ENABLE);
         while (ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == RESET) {
         }
@@ -475,39 +467,22 @@ static u8 Snake_KnobLevel(void)
 
 static void Snake_KnobReset(void)
 {
-    u16 value = Snake_KnobRead();
-
-    if (value < KNOB_LOW_TH) {
-        knob_zone = KNOB_LEFT_EVENT;
-    } else if (value > KNOB_HIGH_TH) {
-        knob_zone = KNOB_RIGHT_EVENT;
-    } else {
-        knob_zone = 0;
-    }
-
+    knob_last_value = Snake_KnobRead();
+    knob_zone = 0;
     knob_event_latch = 0;
 }
 
 static void Snake_KnobScan(void)
 {
     u16 value = Snake_KnobRead();
-    u8 new_zone = knob_zone;
 
-    if (knob_zone == 0) {
-        if (value < KNOB_LOW_TH) {
-            new_zone = KNOB_LEFT_EVENT;
-        } else if (value > KNOB_HIGH_TH) {
-            new_zone = KNOB_RIGHT_EVENT;
-        }
-    } else if (value >= KNOB_CENTER_LOW && value <= KNOB_CENTER_HIGH) {
-        new_zone = 0;
+    if ((u16)(value + KNOB_TURN_DELTA) < knob_last_value) {
+        knob_event_latch = KNOB_LEFT_EVENT;
+        knob_last_value = value;
+    } else if (value > (u16)(knob_last_value + KNOB_TURN_DELTA)) {
+        knob_event_latch = KNOB_RIGHT_EVENT;
+        knob_last_value = value;
     }
-
-    if (knob_zone == 0 && new_zone != 0) {
-        knob_event_latch = new_zone;
-    }
-
-    knob_zone = new_zone;
 }
 
 static u8 Snake_KnobPopEvent(void)
@@ -585,8 +560,10 @@ static void Snake_PlayTone(u16 freq, u16 ms)
     Snake_AudioSet(saved_freq);
 }
 
-static void Snake_MusicReset(void)
+static void Snake_MusicSelect(const MusicNote *notes, u8 count)
 {
+    music_notes = notes;
+    music_count = count;
     music_index = 0;
     music_left_ms = 0;
     music_gap_ms = 0;
@@ -594,11 +571,18 @@ static void Snake_MusicReset(void)
     Snake_AudioStop();
 }
 
+static void Snake_MusicSetLevel(u8 lv)
+{
+    if (lv >= LEVEL_COUNT) {
+        lv = LEVEL_COUNT - 1;
+    }
+
+    Snake_MusicSelect(level_music[lv].notes, level_music[lv].count);
+}
+
 static void Snake_MusicLoadNextNote(void)
 {
-    const LevelMusic *music = &level_music[level_index];
-
-    if (music->count == 0) {
+    if (music_notes == 0 || music_count == 0) {
         music_freq = NOTE_REST;
         music_left_ms = 80;
         music_gap_ms = 0;
@@ -606,15 +590,15 @@ static void Snake_MusicLoadNextNote(void)
         return;
     }
 
-    music_freq = music->notes[music_index].freq;
-    music_left_ms = music->notes[music_index].ms;
+    music_freq = music_notes[music_index].freq;
+    music_left_ms = music_notes[music_index].ms;
     music_gap_ms = 0;
     if (music_freq != NOTE_REST) {
-        music_gap_ms = (music_left_ms >= 120) ? 14 : 8;
+        music_gap_ms = (music_left_ms >= 300) ? 24 : 10;
     }
     Snake_AudioSet(music_freq);
     music_index++;
-    if (music_index >= music->count) {
+    if (music_index >= music_count) {
         music_index = 0;
     }
 
@@ -805,9 +789,10 @@ static void Snake_ShowHome(void)
     Snake_ShowTextCenter(250, 12, "Knob select level, key start",
                          LGRAY, BLACK, 1);
     Snake_DrawHomePrompt(blink);
+    Snake_MusicSelect(music_home, MUSIC_COUNT(music_home));
 
     while (Snake_KeyReadRaw() != 0) {
-        Delay_ms(20);
+        Snake_MusicTick(20);
     }
 
     while (1) {
@@ -821,15 +806,16 @@ static void Snake_ShowHome(void)
             if (Snake_KeyReadRaw() != 0) {
                 Snake_Beep(60);
                 while (Snake_KeyReadRaw() != 0) {
-                    Delay_ms(20);
+                    Snake_MusicTick(20);
                 }
                 start_level = selected;
                 Delay_ms(120);
                 LCD_Clear(BLACK);
+                Snake_AudioStop();
                 Snake_KeyReset();
                 return;
             }
-            Delay_ms(20);
+            Snake_MusicTick(20);
         }
 
         blink = (u8)!blink;
@@ -1078,7 +1064,7 @@ static void Snake_StartLevel(u8 lv)
     level_score = 0;
     time_left = level_time_limit[level_index];
     Snake_SetStatus("K1+K2 Pause");
-    Snake_MusicReset();
+    Snake_MusicSetLevel(level_index);
     Snake_ResetSnake();
     rng_state ^= 0x5a5a0000u + score + GPIO_ReadInputData(GPIOA);
     Snake_PlaceFood();
