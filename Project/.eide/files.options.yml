@@ -15,6 +15,6 @@
 
 version: "2.1"
 options:
-    TIMx应用-更新中断实验:
+    Debug:
         files: {}
         virtualPathFiles: {}
