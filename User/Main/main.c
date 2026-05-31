@@ -438,6 +438,23 @@ static u8 Snake_CommandToDir(SnakeUartCmdType type, SnakeDir *want)
     return 1;
 }
 
+static u8 Snake_DuoKeypadToDir(u8 value, SnakeDir *want)
+{
+    if (value == 0) {
+        *want = DIR_LEFT;   /* 1 */
+    } else if (value == 1) {
+        *want = DIR_DOWN;   /* 2 */
+    } else if (value == 2) {
+        *want = DIR_RIGHT;  /* 3 */
+    } else if (value == 4) {
+        *want = DIR_UP;     /* 5 */
+    } else {
+        return 0;
+    }
+
+    return 1;
+}
+
 static void Snake_SetP1Direction(SnakeDir want)
 {
     if (paused || turn_pending || want == next_dir || Snake_IsReverse(dir, want)) {
@@ -506,7 +523,11 @@ static void Snake_ApplySerialCommand(const SnakeUartCmd *cmd)
     }
 
     if (cmd->type == SNAKE_UART_CMD_LEVEL) {
-        if (cmd->value < LEVEL_COUNT) {
+        if (game_mode == GAME_MODE_DUO) {
+            if (Snake_DuoKeypadToDir(cmd->value, &want)) {
+                Snake_SetP2Direction(want);
+            }
+        } else if (cmd->value < LEVEL_COUNT) {
             Snake_SelectLevel(cmd->value, "UART LEVEL");
         }
         return;
@@ -1647,7 +1668,7 @@ static void Snake_StartLevel(u8 lv)
     time_left = (game_mode == GAME_MODE_CLASSIC) ? 0 : level_time_limit[level_index];
     classic_target_len = Snake_CountWalkableCells();
     if (game_mode == GAME_MODE_DUO) {
-        Snake_SetStatus("DUO");
+        Snake_SetStatus("P1 WASD P2 1235");
     } else {
         Snake_SetStatus(game_mode == GAME_MODE_CLASSIC ? "CLASSIC" : "K1+K2 Pause");
     }
