@@ -56,3 +56,4 @@ dkms.conf
 
 # Keil uVision user-specific GUI layout
 Project/Project.uvguix.86178
+Project/List/*.lst
