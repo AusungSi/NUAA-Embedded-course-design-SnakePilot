@@ -82,22 +82,22 @@
         <Book>
           <Number>0</Number>
           <Title>Quick Start Guide (MCBSTM32C)</Title>
-          <Path>C:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\2.2.0\Boards\Keil\MCBSTM32C\Documentation\STM32C_QSG.pdf</Path>
+          <Path>D:\keil\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Boards\Keil\MCBSTM32C\Documentation\STM32C_QSG.pdf</Path>
         </Book>
         <Book>
           <Number>1</Number>
           <Title>Base Board Schematics (MCBSTM32C)</Title>
-          <Path>C:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\2.2.0\Boards\Keil\MCBSTM32C\Documentation\mcbstm32c-base-board-schematics.pdf</Path>
+          <Path>D:\keil\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Boards\Keil\MCBSTM32C\Documentation\mcbstm32c-base-board-schematics.pdf</Path>
         </Book>
         <Book>
           <Number>2</Number>
           <Title>Display Board Schematics (MCBSTM32C)</Title>
-          <Path>C:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\2.2.0\Boards\Keil\MCBSTM32C\Documentation\mcbstm32c-display-board-schematics.pdf</Path>
+          <Path>D:\keil\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Boards\Keil\MCBSTM32C\Documentation\mcbstm32c-display-board-schematics.pdf</Path>
         </Book>
         <Book>
           <Number>3</Number>
           <Title>User Manual (MCBSTM32C)</Title>
-          <Path>C:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\2.2.0\Boards\Keil\MCBSTM32C\Documentation\mcbstm32c.chm</Path>
+          <Path>D:\keil\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Boards\Keil\MCBSTM32C\Documentation\mcbstm32c.chm</Path>
         </Book>
         <Book>
           <Number>4</Number>
@@ -339,6 +339,19 @@
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
+    <File>
+      <GroupNumber>2</GroupNumber>
+      <FileNumber>9</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\Libraries\STM32F10x_StdPeriph_Driver_v3.5\src\stm32f10x_usart.c</PathWithFileName>
+      <FilenameWithoutPath>stm32f10x_usart.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
   </Group>
 
   <Group>
@@ -349,7 +362,7 @@
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>9</FileNumber>
+      <FileNumber>10</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -362,7 +375,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>10</FileNumber>
+      <FileNumber>11</FileNumber>
       <FileType>2</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -375,7 +388,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>11</FileNumber>
+      <FileNumber>12</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -396,9 +409,9 @@
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>4</GroupNumber>
-      <FileNumber>12</FileNumber>
+      <FileNumber>13</FileNumber>
       <FileType>1</FileType>
-      <tvExp>1</tvExp>
+      <tvExp>0</tvExp>
       <Focus>0</Focus>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
@@ -417,7 +430,7 @@
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>5</GroupNumber>
-      <FileNumber>13</FileNumber>
+      <FileNumber>14</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -431,14 +444,35 @@
   </Group>
 
   <Group>
-    <GroupName>Doc</GroupName>
+    <GroupName>Uart</GroupName>
     <tvExp>1</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>6</GroupNumber>
-      <FileNumber>14</FileNumber>
+      <FileNumber>15</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\User\Uart\snake_uart.c</PathWithFileName>
+      <FilenameWithoutPath>snake_uart.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+  </Group>
+
+  <Group>
+    <GroupName>Doc</GroupName>
+    <tvExp>1</tvExp>
+    <tvExpOptDlg>0</tvExpOptDlg>
+    <cbSel>0</cbSel>
+    <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>7</GroupNumber>
+      <FileNumber>16</FileNumber>
       <FileType>5</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
