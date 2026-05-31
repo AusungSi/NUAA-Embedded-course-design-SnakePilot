@@ -5,9 +5,13 @@
 
 #define GRID_COLS       15
 #define GRID_ROWS       20
-#define CELL_SIZE       12
-#define BOARD_X         30
+#define CELL_W          13
+#define CELL_H          12
+#define BOARD_X         22
 #define BOARD_Y         72
+#define OPEN_DUO_ROWS   9
+#define OPEN_DUO_P1_Y   BOARD_Y
+#define OPEN_DUO_P2_Y   204
 #define OPEN_WORLD_COLS 40
 #define OPEN_WORLD_ROWS 56
 #define MAX_SNAKE_LEN   (OPEN_WORLD_COLS * OPEN_WORLD_ROWS)
@@ -392,6 +396,10 @@ static u8 viewport_x;
 static u8 viewport_y;
 static u8 prev_viewport_x;
 static u8 prev_viewport_y;
+static u8 viewport2_x;
+static u8 viewport2_y;
+static u8 prev_viewport2_x;
+static u8 prev_viewport2_y;
 static u8 time_left;
 static u16 time_acc_ms;
 static const MusicNote *music_notes;
@@ -436,6 +444,11 @@ static u8 Snake_IsDuoMode(void)
 static u8 Snake_IsOpenMode(void)
 {
     return (u8)(game_mode == GAME_MODE_OPEN || game_mode == GAME_MODE_OPEN_DUO);
+}
+
+static u8 Snake_IsOpenDuoMode(void)
+{
+    return (u8)(game_mode == GAME_MODE_OPEN_DUO);
 }
 
 static u8 Snake_WorldCols(void)
@@ -1460,27 +1473,42 @@ static u16 Snake_CountWalkableCells(void)
 
 static void Snake_DrawCell(u8 x, u8 y, u16 color)
 {
-    u16 px = BOARD_X + (u16)x * CELL_SIZE;
-    u16 py = BOARD_Y + (u16)y * CELL_SIZE;
+    u16 px = BOARD_X + (u16)x * CELL_W;
+    u16 py = BOARD_Y + (u16)y * CELL_H;
 
-    LCD_Fill(px + 1, py + 1, px + CELL_SIZE - 2, py + CELL_SIZE - 2, color);
+    LCD_Fill(px + 1, py + 1, px + CELL_W - 2, py + CELL_H - 2, color);
 }
 
-static u8 Snake_WorldToView(u8 wx, u8 wy, u8 *vx, u8 *vy)
+static void Snake_DrawCellAt(u16 board_x, u16 board_y, u8 x, u8 y, u16 color)
 {
-    if (wx < viewport_x || wy < viewport_y) {
+    u16 px = board_x + (u16)x * CELL_W;
+    u16 py = board_y + (u16)y * CELL_H;
+
+    LCD_Fill(px + 1, py + 1, px + CELL_W - 2, py + CELL_H - 2, color);
+}
+
+static u8 Snake_WorldToViewAt(u8 wx, u8 wy, u8 base_x, u8 base_y,
+                              u8 view_rows, u8 *vx, u8 *vy)
+{
+    if (wx < base_x || wy < base_y) {
         return 0;
     }
 
-    wx = (u8)(wx - viewport_x);
-    wy = (u8)(wy - viewport_y);
-    if (wx >= GRID_COLS || wy >= GRID_ROWS) {
+    wx = (u8)(wx - base_x);
+    wy = (u8)(wy - base_y);
+    if (wx >= GRID_COLS || wy >= view_rows) {
         return 0;
     }
 
     *vx = wx;
     *vy = wy;
     return 1;
+}
+
+static u8 Snake_WorldToView(u8 wx, u8 wy, u8 *vx, u8 *vy)
+{
+    return Snake_WorldToViewAt(wx, wy, viewport_x, viewport_y,
+                               GRID_ROWS, vx, vy);
 }
 
 static void Snake_DrawWorldCell(u8 x, u8 y, u16 color)
@@ -1490,6 +1518,18 @@ static void Snake_DrawWorldCell(u8 x, u8 y, u16 color)
 
     if (Snake_WorldToView(x, y, &vx, &vy)) {
         Snake_DrawCell(vx, vy, color);
+    }
+}
+
+static void Snake_DrawWorldCellAt(u16 board_x, u16 board_y, u8 view_x,
+                                  u8 view_y, u8 view_rows,
+                                  u8 x, u8 y, u16 color)
+{
+    u8 vx;
+    u8 vy;
+
+    if (Snake_WorldToViewAt(x, y, view_x, view_y, view_rows, &vx, &vy)) {
+        Snake_DrawCellAt(board_x, board_y, vx, vy, color);
     }
 }
 
@@ -1508,6 +1548,24 @@ static void Snake_DrawMapCell(u8 x, u8 y)
     }
 }
 
+static void Snake_DrawMapCellAt(u16 board_x, u16 board_y, u8 view_x,
+                                u8 view_y, u8 view_rows, u8 x, u8 y)
+{
+    char c = Snake_MapCell(x, y);
+    u16 color = BLACK;
+
+    if (c == '#') {
+        color = GRAY;
+    } else if (c == 'A') {
+        color = CYAN;
+    } else if (c == 'B') {
+        color = MAGENTA;
+    }
+
+    Snake_DrawWorldCellAt(board_x, board_y, view_x, view_y, view_rows,
+                          x, y, color);
+}
+
 static void Snake_DrawFood(void)
 {
     if (food_type == FOOD_POISON) {
@@ -1517,6 +1575,21 @@ static void Snake_DrawFood(void)
     } else {
         Snake_DrawWorldCell(food_x, food_y, RED);
     }
+}
+
+static void Snake_DrawFoodAt(u16 board_x, u16 board_y, u8 view_x,
+                             u8 view_y, u8 view_rows)
+{
+    u16 color = RED;
+
+    if (food_type == FOOD_POISON) {
+        color = MAGENTA;
+    } else if (food_type == FOOD_BONUS) {
+        color = CYAN;
+    }
+
+    Snake_DrawWorldCellAt(board_x, board_y, view_x, view_y, view_rows,
+                          food_x, food_y, color);
 }
 
 static void Snake_SaveRenderState(void)
@@ -1539,40 +1612,58 @@ static void Snake_SaveRenderState(void)
     prev_food_y = food_y;
     prev_viewport_x = viewport_x;
     prev_viewport_y = viewport_y;
+    prev_viewport2_x = viewport2_x;
+    prev_viewport2_y = viewport2_y;
+}
+
+static void Snake_UpdateOneViewport(u8 head_x, u8 head_y, u8 view_rows,
+                                    u8 *view_x, u8 *view_y)
+{
+    u8 cols = Snake_WorldCols();
+    u8 rows = Snake_WorldRows();
+    u8 max_x = (cols > GRID_COLS) ? (u8)(cols - GRID_COLS) : 0;
+    u8 max_y = (rows > view_rows) ? (u8)(rows - view_rows) : 0;
+    u8 y_margin = (view_rows > 10) ? 5 : 2;
+
+    if (head_x < *view_x + 4) {
+        *view_x = (head_x > 4) ? (u8)(head_x - 4) : 0;
+    } else if (head_x >= *view_x + GRID_COLS - 4) {
+        *view_x = (u8)(head_x - GRID_COLS + 5);
+    }
+
+    if (head_y < *view_y + y_margin) {
+        *view_y = (head_y > y_margin) ? (u8)(head_y - y_margin) : 0;
+    } else if (head_y >= *view_y + view_rows - y_margin) {
+        *view_y = (u8)(head_y - view_rows + y_margin + 1);
+    }
+
+    if (*view_x > max_x) {
+        *view_x = max_x;
+    }
+    if (*view_y > max_y) {
+        *view_y = max_y;
+    }
 }
 
 static void Snake_UpdateViewport(void)
 {
-    u8 cols = Snake_WorldCols();
-    u8 rows = Snake_WorldRows();
-    u8 head_x = snake_x[0];
-    u8 head_y = snake_y[0];
-    u8 max_x = (cols > GRID_COLS) ? (u8)(cols - GRID_COLS) : 0;
-    u8 max_y = (rows > GRID_ROWS) ? (u8)(rows - GRID_ROWS) : 0;
-
     if (!Snake_IsOpenMode()) {
         viewport_x = 0;
         viewport_y = 0;
+        viewport2_x = 0;
+        viewport2_y = 0;
         return;
     }
 
-    if (head_x < viewport_x + 4) {
-        viewport_x = (head_x > 4) ? (u8)(head_x - 4) : 0;
-    } else if (head_x >= viewport_x + GRID_COLS - 4) {
-        viewport_x = (u8)(head_x - GRID_COLS + 5);
-    }
-
-    if (head_y < viewport_y + 5) {
-        viewport_y = (head_y > 5) ? (u8)(head_y - 5) : 0;
-    } else if (head_y >= viewport_y + GRID_ROWS - 5) {
-        viewport_y = (u8)(head_y - GRID_ROWS + 6);
-    }
-
-    if (viewport_x > max_x) {
-        viewport_x = max_x;
-    }
-    if (viewport_y > max_y) {
-        viewport_y = max_y;
+    Snake_UpdateOneViewport(snake_x[0], snake_y[0],
+                            Snake_IsOpenDuoMode() ? OPEN_DUO_ROWS : GRID_ROWS,
+                            &viewport_x, &viewport_y);
+    if (Snake_IsOpenDuoMode()) {
+        Snake_UpdateOneViewport(snake2_x[0], snake2_y[0],
+                                OPEN_DUO_ROWS, &viewport2_x, &viewport2_y);
+    } else {
+        viewport2_x = viewport_x;
+        viewport2_y = viewport_y;
     }
 }
 
@@ -1606,7 +1697,7 @@ static void Snake_DrawHeader(void)
         LCD_ShowNum(166, 24, lives, 1, 16);
     }
     if (Snake_IsOpenMode()) {
-        LCD_ShowString(182, 24, 16, (u8 *)"M:", 0);
+        LCD_ShowString(176, 24, 16, (u8 *)(Snake_IsOpenDuoMode() ? "V1:" : "M:"), 0);
         LCD_ShowNum(204, 24, viewport_x, 2, 16);
         LCD_ShowString(220, 24, 16, (u8 *)",", 0);
         LCD_ShowNum(228, 24, viewport_y, 2, 16);
@@ -1623,6 +1714,29 @@ static void Snake_DrawHeader(void)
     LCD_ShowString(6, 48, 16, (u8 *)status_msg, 0);
 }
 
+static void Snake_RenderViewportAt(u16 board_x, u16 board_y, u8 view_x,
+                                   u8 view_y, u8 view_rows)
+{
+    u8 x;
+    u8 y;
+    u8 wx;
+    u8 wy;
+
+    for (y = 0; y < view_rows; y++) {
+        for (x = 0; x < GRID_COLS; x++) {
+            wx = (u8)(view_x + x);
+            wy = (u8)(view_y + y);
+            Snake_DrawMapCellAt(board_x, board_y, view_x, view_y,
+                                view_rows, wx, wy);
+        }
+    }
+
+    POINT_COLOR = GRAY;
+    LCD_DrawRectangle(board_x - 1, board_y - 1,
+                      board_x + GRID_COLS * CELL_W,
+                      board_y + view_rows * CELL_H);
+}
+
 static void Snake_RenderBoard(void)
 {
     u8 x;
@@ -1631,8 +1745,8 @@ static void Snake_RenderBoard(void)
     u8 wy;
 
     if (!Snake_IsOpenMode()) {
-        LCD_Fill(BOARD_X, BOARD_Y, BOARD_X + GRID_COLS * CELL_SIZE - 1,
-                 BOARD_Y + GRID_ROWS * CELL_SIZE - 1, BLACK);
+        LCD_Fill(BOARD_X, BOARD_Y, BOARD_X + GRID_COLS * CELL_W - 1,
+                 BOARD_Y + GRID_ROWS * CELL_H - 1, BLACK);
     }
 
     for (y = 0; y < GRID_ROWS; y++) {
@@ -1645,13 +1759,70 @@ static void Snake_RenderBoard(void)
 
     POINT_COLOR = GRAY;
     LCD_DrawRectangle(BOARD_X - 1, BOARD_Y - 1,
-                      BOARD_X + GRID_COLS * CELL_SIZE,
-                      BOARD_Y + GRID_ROWS * CELL_SIZE);
+                      BOARD_X + GRID_COLS * CELL_W,
+                      BOARD_Y + GRID_ROWS * CELL_H);
+}
+
+static void Snake_DrawOpenDuoLabels(void)
+{
+    POINT_COLOR = WHITE;
+    BACK_COLOR = BLACK;
+    LCD_ShowString(4, OPEN_DUO_P1_Y + 38, 16, (u8 *)"P1", 0);
+    LCD_ShowString(4, OPEN_DUO_P2_Y + 38, 16, (u8 *)"P2", 0);
+}
+
+static void Snake_DrawSnakeOnViewport(u16 board_x, u16 board_y, u8 view_x,
+                                      u8 view_y, u8 view_rows,
+                                      u8 *sx, u8 *sy, u16 len,
+                                      u16 head_color, u16 body_color)
+{
+    u16 i;
+
+    for (i = 0; i < len; i++) {
+        Snake_DrawWorldCellAt(board_x, board_y, view_x, view_y, view_rows,
+                              sx[i], sy[i], (i == 0) ? head_color : body_color);
+    }
+}
+
+static void Snake_RenderOpenDuo(void)
+{
+    Snake_UpdateViewport();
+    Snake_DrawHeader();
+    LCD_Fill(0, BOARD_Y - 4, LCD_W - 1, LCD_H - 1, BLACK);
+
+    Snake_RenderViewportAt(BOARD_X, OPEN_DUO_P1_Y, viewport_x, viewport_y,
+                           OPEN_DUO_ROWS);
+    Snake_DrawFoodAt(BOARD_X, OPEN_DUO_P1_Y, viewport_x, viewport_y,
+                     OPEN_DUO_ROWS);
+    Snake_DrawSnakeOnViewport(BOARD_X, OPEN_DUO_P1_Y, viewport_x, viewport_y,
+                              OPEN_DUO_ROWS, snake_x, snake_y, snake_len,
+                              YELLOW, GREEN);
+    Snake_DrawSnakeOnViewport(BOARD_X, OPEN_DUO_P1_Y, viewport_x, viewport_y,
+                              OPEN_DUO_ROWS, snake2_x, snake2_y, snake2_len,
+                              MAGENTA, CYAN);
+
+    Snake_RenderViewportAt(BOARD_X, OPEN_DUO_P2_Y, viewport2_x, viewport2_y,
+                           OPEN_DUO_ROWS);
+    Snake_DrawFoodAt(BOARD_X, OPEN_DUO_P2_Y, viewport2_x, viewport2_y,
+                     OPEN_DUO_ROWS);
+    Snake_DrawSnakeOnViewport(BOARD_X, OPEN_DUO_P2_Y, viewport2_x, viewport2_y,
+                              OPEN_DUO_ROWS, snake_x, snake_y, snake_len,
+                              YELLOW, GREEN);
+    Snake_DrawSnakeOnViewport(BOARD_X, OPEN_DUO_P2_Y, viewport2_x, viewport2_y,
+                              OPEN_DUO_ROWS, snake2_x, snake2_y, snake2_len,
+                              MAGENTA, CYAN);
+    Snake_DrawOpenDuoLabels();
+    Snake_SaveRenderState();
 }
 
 static void Snake_Render(void)
 {
     u16 i;
+
+    if (Snake_IsOpenDuoMode()) {
+        Snake_RenderOpenDuo();
+        return;
+    }
 
     Snake_UpdateViewport();
     Snake_DrawHeader();
@@ -1687,9 +1858,79 @@ static void Snake_RestoreCell(u8 x, u8 y)
     }
 }
 
+static void Snake_RestoreCellAt(u16 board_x, u16 board_y, u8 view_x,
+                                u8 view_y, u8 view_rows, u8 x, u8 y)
+{
+    Snake_DrawMapCellAt(board_x, board_y, view_x, view_y, view_rows, x, y);
+    if (x == food_x && y == food_y) {
+        Snake_DrawFoodAt(board_x, board_y, view_x, view_y, view_rows);
+    }
+}
+
+static void Snake_RenderStepOnViewport(u16 board_x, u16 board_y, u8 view_x,
+                                       u8 view_y, u8 view_rows,
+                                       u8 food_changed)
+{
+    if (prev_snake_len != 0) {
+        if (snake_len <= prev_snake_len) {
+            Snake_RestoreCellAt(board_x, board_y, view_x, view_y, view_rows,
+                                prev_snake_tail_x, prev_snake_tail_y);
+        }
+        Snake_RestoreCellAt(board_x, board_y, view_x, view_y, view_rows,
+                            prev_snake_head_x, prev_snake_head_y);
+        if (Snake_IsDuoMode() && prev_snake2_len != 0) {
+            if (snake2_len <= prev_snake2_len) {
+                Snake_RestoreCellAt(board_x, board_y, view_x, view_y, view_rows,
+                                    prev_snake2_tail_x, prev_snake2_tail_y);
+            }
+            Snake_RestoreCellAt(board_x, board_y, view_x, view_y, view_rows,
+                                prev_snake2_head_x, prev_snake2_head_y);
+        }
+    }
+
+    if (food_changed) {
+        Snake_RestoreCellAt(board_x, board_y, view_x, view_y, view_rows,
+                            prev_food_x, prev_food_y);
+        Snake_DrawFoodAt(board_x, board_y, view_x, view_y, view_rows);
+    }
+
+    if (snake_len > 1) {
+        Snake_DrawWorldCellAt(board_x, board_y, view_x, view_y, view_rows,
+                              snake_x[1], snake_y[1], GREEN);
+    }
+    Snake_DrawWorldCellAt(board_x, board_y, view_x, view_y, view_rows,
+                          snake_x[0], snake_y[0], YELLOW);
+    if (Snake_IsDuoMode()) {
+        if (snake2_len > 1) {
+            Snake_DrawWorldCellAt(board_x, board_y, view_x, view_y, view_rows,
+                                  snake2_x[1], snake2_y[1], CYAN);
+        }
+        Snake_DrawWorldCellAt(board_x, board_y, view_x, view_y, view_rows,
+                              snake2_x[0], snake2_y[0], MAGENTA);
+    }
+}
+
 static void Snake_RenderStep(u8 food_changed)
 {
     Snake_UpdateViewport();
+    if (Snake_IsOpenDuoMode()) {
+        if (viewport_x != prev_viewport_x || viewport_y != prev_viewport_y ||
+            viewport2_x != prev_viewport2_x || viewport2_y != prev_viewport2_y ||
+            prev_snake_len == 0) {
+            Snake_Render();
+            return;
+        }
+
+        Snake_RenderStepOnViewport(BOARD_X, OPEN_DUO_P1_Y, viewport_x,
+                                   viewport_y, OPEN_DUO_ROWS, food_changed);
+        Snake_RenderStepOnViewport(BOARD_X, OPEN_DUO_P2_Y, viewport2_x,
+                                   viewport2_y, OPEN_DUO_ROWS, food_changed);
+        Snake_DrawOpenDuoLabels();
+        Snake_DrawHeader();
+        Snake_SaveRenderState();
+        return;
+    }
+
     if (viewport_x != prev_viewport_x || viewport_y != prev_viewport_y) {
         Snake_Render();
         return;
@@ -1830,6 +2071,10 @@ static void Snake_ResetSnake(void)
     viewport_y = 0;
     prev_viewport_x = 0xff;
     prev_viewport_y = 0xff;
+    viewport2_x = 0;
+    viewport2_y = 0;
+    prev_viewport2_x = 0xff;
+    prev_viewport2_y = 0xff;
 
     if (Snake_IsOpenMode()) {
         snake_x[0] = 20;
@@ -2337,11 +2582,7 @@ static u8 Snake_DuoStep(void)
     }
 
     Snake_ShowDirection();
-    if (game_mode == GAME_MODE_DUO) {
-        Snake_Render();
-    } else {
-        Snake_RenderStep(food_changed);
-    }
+    Snake_RenderStep(food_changed);
     return STEP_ALIVE;
 }
 
