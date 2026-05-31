@@ -25,6 +25,7 @@
 #include "stm32f10x_it.h"
 #include "hw_config.h"
 #include "lcd.h"
+#include "snake_uart.h"
 
 /** @addtogroup STM32F10x_StdPeriph_Template
   * @{
@@ -168,6 +169,10 @@ void TIM3_IRQHandler(void)
 		if (TP3&1) 			GPIO_ResetBits(GPIOD,GPIO_Pin_4);   /*  PD4=0£¨LED3ÁÁ£©*/
 		else 						GPIO_SetBits(GPIOD,GPIO_Pin_4); 		/*  PD4=1£¨LED3Ãð£©*/
 	}
+}
+void USART1_IRQHandler(void)
+{
+	SnakeUart_RxIrqHandler();
 }
 
 

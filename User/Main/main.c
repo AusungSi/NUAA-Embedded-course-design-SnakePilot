@@ -1,6 +1,7 @@
 #include "stm32f10x.h"
 #include "hw_config.h"
 #include "lcd.h"
+#include "snake_uart.h"
 
 #define GRID_COLS       15
 #define GRID_ROWS       20
@@ -380,8 +381,162 @@ static u8 sound_volume = VOLUME_DEFAULT;
 static u8 turn_pending;
 static u8 paused;
 static u8 pause_lock;
+static u8 restart_request;
 static u8 start_level;
 static const char *status_msg = "READY";
+
+static void Snake_AudioStop(void);
+static void Snake_AudioSet(u16 freq);
+static void Snake_Beep(u16 ms);
+static void Snake_SetStatus(const char *msg);
+static void Snake_DrawHeader(void);
+static void Snake_StartLevel(u8 lv);
+
+static u8 Snake_IsReverse(SnakeDir from, SnakeDir to)
+{
+    return (u8)((from == DIR_UP && to == DIR_DOWN) ||
+                (from == DIR_DOWN && to == DIR_UP) ||
+                (from == DIR_LEFT && to == DIR_RIGHT) ||
+                (from == DIR_RIGHT && to == DIR_LEFT));
+}
+
+static void Snake_TogglePause(void)
+{
+    paused = (u8)!paused;
+    pause_lock = 1;
+    key_press_latch = 0;
+    if (paused) {
+        Snake_AudioStop();
+    } else if (music_left_ms != 0) {
+        Snake_AudioSet(music_freq);
+    }
+    Snake_SetStatus(paused ? "PAUSED" : "RUNNING");
+    Snake_DrawHeader();
+    Snake_Beep(35);
+}
+
+static void Snake_SelectLevel(u8 next_level, const char *msg)
+{
+    Snake_StartLevel(next_level);
+    paused = 1;
+    Snake_AudioStop();
+    Snake_SetStatus(msg);
+    Snake_DrawHeader();
+    Snake_Beep(35);
+}
+
+static void Snake_ApplySerialCommand(const SnakeUartCmd *cmd)
+{
+    SnakeDir want = next_dir;
+
+    if (cmd->type == SNAKE_UART_CMD_PAUSE) {
+        Snake_TogglePause();
+        return;
+    }
+
+    if (cmd->type == SNAKE_UART_CMD_START) {
+        Snake_TogglePause();
+        return;
+    }
+
+    if (cmd->type == SNAKE_UART_CMD_RESET) {
+        restart_request = 1;
+        Snake_SetStatus("UART RESET");
+        Snake_DrawHeader();
+        return;
+    }
+
+    if (cmd->type == SNAKE_UART_CMD_LEVEL) {
+        if (cmd->value < LEVEL_COUNT) {
+            Snake_SelectLevel(cmd->value, "UART LEVEL");
+        }
+        return;
+    }
+
+    if (paused || turn_pending) {
+        return;
+    }
+
+    if (cmd->type == SNAKE_UART_CMD_UP) {
+        want = DIR_UP;
+    } else if (cmd->type == SNAKE_UART_CMD_DOWN) {
+        want = DIR_DOWN;
+    } else if (cmd->type == SNAKE_UART_CMD_LEFT) {
+        want = DIR_LEFT;
+    } else if (cmd->type == SNAKE_UART_CMD_RIGHT) {
+        want = DIR_RIGHT;
+    } else {
+        return;
+    }
+
+    if (want == next_dir || Snake_IsReverse(dir, want)) {
+        return;
+    }
+
+    next_dir = want;
+    turn_pending = 1;
+    Snake_SetStatus("UART MOVE");
+    Snake_DrawHeader();
+}
+
+static void Snake_HandleSerialInput(void)
+{
+    SnakeUartCmd cmd;
+
+    while (SnakeUart_PopCommand(&cmd)) {
+        Snake_ApplySerialCommand(&cmd);
+    }
+}
+
+static u8 Snake_HandleHomeSerialInput(u8 *selected_level, u8 *open_settings)
+{
+    SnakeUartCmd cmd;
+    u8 should_start = 0;
+    u8 selected = *selected_level;
+
+    while (SnakeUart_PopCommand(&cmd)) {
+        if (cmd.type == SNAKE_UART_CMD_LEVEL) {
+            if (cmd.value < LEVEL_COUNT) {
+                selected = cmd.value;
+            }
+        } else if (cmd.type == SNAKE_UART_CMD_LEFT) {
+            selected = (selected == 0) ? (LEVEL_COUNT - 1) : (u8)(selected - 1);
+        } else if (cmd.type == SNAKE_UART_CMD_RIGHT) {
+            selected = (u8)((selected + 1) % LEVEL_COUNT);
+        } else if (cmd.type == SNAKE_UART_CMD_START) {
+            should_start = 1;
+        } else if (cmd.type == SNAKE_UART_CMD_PAUSE) {
+            *open_settings = 1;
+        }
+    }
+
+    *selected_level = selected;
+    return should_start;
+}
+
+static u8 Snake_HandleSettingsSerialInput(void)
+{
+    SnakeUartCmd cmd;
+    u8 should_return = 0;
+
+    while (SnakeUart_PopCommand(&cmd)) {
+        if (cmd.type == SNAKE_UART_CMD_LEFT) {
+            if (sound_volume > 0) {
+                sound_volume--;
+            }
+        } else if (cmd.type == SNAKE_UART_CMD_RIGHT) {
+            if (sound_volume < VOLUME_MAX) {
+                sound_volume++;
+            }
+        } else if (cmd.type == SNAKE_UART_CMD_START ||
+                   cmd.type == SNAKE_UART_CMD_PAUSE ||
+                   cmd.type == SNAKE_UART_CMD_RESET) {
+            should_return = 1;
+        }
+    }
+
+    return should_return;
+}
 
 static u16 Snake_Rand(u16 max)
 {
@@ -877,22 +1032,38 @@ static void Snake_ShowSettings(void)
 {
     u8 last_volume = 0xff;
     u8 raw;
+    u16 knob_value;
+    u16 last_knob_value;
 
     LCD_Clear(BLACK);
     LCD_Fill(0, 0, LCD_W - 1, 76, HOME_NAVY);
     Snake_ShowTextCenter(22, 16, "SETTINGS", WHITE, HOME_NAVY, 1);
-    Snake_ShowTextCenter(48, 12, "Knob changes volume", CYAN, HOME_NAVY, 1);
+    Snake_ShowTextCenter(48, 12, "A/D or knob volume", CYAN, HOME_NAVY, 1);
     Snake_DrawVolumeBar();
-    Snake_ShowTextCenter(250, 12, "Press any key to return", LGRAY, BLACK, 1);
+    Snake_ShowTextCenter(250, 12, "Space/P return", LGRAY, BLACK, 1);
 
     while (Snake_KeyReadRaw() != 0) {
         Delay_ms(20);
     }
 
+    last_knob_value = Snake_KnobRead();
+
     while (1) {
-        sound_volume = (u8)((Snake_KnobRead() * (VOLUME_MAX + 1UL)) / 4096UL);
-        if (sound_volume > VOLUME_MAX) {
-            sound_volume = VOLUME_MAX;
+        knob_value = Snake_KnobRead();
+        if ((u16)(knob_value + KNOB_TURN_DELTA) < last_knob_value ||
+            knob_value > (u16)(last_knob_value + KNOB_TURN_DELTA)) {
+            sound_volume = (u8)((knob_value * (VOLUME_MAX + 1UL)) / 4096UL);
+            if (sound_volume > VOLUME_MAX) {
+                sound_volume = VOLUME_MAX;
+            }
+            last_knob_value = knob_value;
+        }
+
+        if (Snake_HandleSettingsSerialInput()) {
+            LCD_Clear(BLACK);
+            Snake_KeyReset();
+            Snake_KnobReset();
+            return;
         }
 
         if (sound_volume != last_volume) {
@@ -929,7 +1100,9 @@ static void Snake_ShowHome(void)
     u8 selected = Snake_KnobLevel();
     u8 last_selected = 0xff;
     u16 adc_value;
+    u16 last_adc_value;
     u8 raw_key;
+    u8 open_settings;
 
     LCD_Clear(BLACK);
     LCD_Fill(0, 0, LCD_W - 1, 78, HOME_NAVY);
@@ -948,7 +1121,7 @@ static void Snake_ShowHome(void)
     Snake_DrawHomeSnake();
     Snake_DrawHomeLevels(selected);
 
-    Snake_ShowTextCenter(250, 12, "Knob select level, key start",
+    Snake_ShowTextCenter(250, 12, "A/D or 1-5 select, Space start",
                          LGRAY, BLACK, 1);
     Snake_DrawHomeSettingsButton();
     Snake_DrawHomePrompt(blink);
@@ -958,13 +1131,39 @@ static void Snake_ShowHome(void)
         Snake_MusicTick(20);
     }
 
+    last_adc_value = Snake_KnobRead();
+
     while (1) {
         for (i = 0; i < 25; i++) {
             adc_value = Snake_KnobRead();
-            selected = (u8)(adc_value / KNOB_LEVEL_STEP);
-            if (selected >= LEVEL_COUNT) {
-                selected = LEVEL_COUNT - 1;
+            if ((u16)(adc_value + KNOB_TURN_DELTA) < last_adc_value ||
+                adc_value > (u16)(last_adc_value + KNOB_TURN_DELTA)) {
+                selected = (u8)(adc_value / KNOB_LEVEL_STEP);
+                if (selected >= LEVEL_COUNT) {
+                    selected = LEVEL_COUNT - 1;
+                }
+                last_adc_value = adc_value;
             }
+
+            open_settings = 0;
+            if (Snake_HandleHomeSerialInput(&selected, &open_settings)) {
+                start_level = selected;
+                Snake_Beep(60);
+                Delay_ms(120);
+                LCD_Clear(BLACK);
+                Snake_AudioStop();
+                Snake_KeyReset();
+                return;
+            }
+
+            if (open_settings) {
+                Snake_AudioStop();
+                Snake_ShowSettings();
+                LCD_Clear(BLACK);
+                Snake_ShowHome();
+                return;
+            }
+
             if (selected != last_selected) {
                 Snake_DrawHomeLevels(selected);
                 last_selected = selected;
@@ -1218,6 +1417,7 @@ static void Snake_ResetSnake(void)
     next_dir = DIR_RIGHT;
     turn_pending = 0;
     paused = 0;
+    restart_request = 0;
     time_acc_ms = 0;
 
     snake_x[0] = 7;
@@ -1305,23 +1505,14 @@ static void Snake_HandleInput(void)
     u8 next_level;
     SnakeDir want;
 
+    Snake_HandleSerialInput();
     Snake_KeyScan();
     Snake_KnobScan();
     knob_event = Snake_KnobPopEvent();
 
     if ((key_stable & KEY_PAUSE_MASK) == KEY_PAUSE_MASK) {
         if (!pause_lock) {
-            paused = (u8)!paused;
-            pause_lock = 1;
-            key_press_latch = 0;
-            if (paused) {
-                Snake_AudioStop();
-            } else if (music_left_ms != 0) {
-                Snake_AudioSet(music_freq);
-            }
-            Snake_SetStatus(paused ? "PAUSED" : "RUNNING");
-            Snake_DrawHeader();
-            Snake_Beep(35);
+            Snake_TogglePause();
         }
         return;
     }
@@ -1335,12 +1526,7 @@ static void Snake_HandleInput(void)
                 next_level = (u8)((level_index + 1) % LEVEL_COUNT);
             }
 
-            Snake_StartLevel(next_level);
-            paused = 1;
-            Snake_AudioStop();
-            Snake_SetStatus("KNOB LEVEL");
-            Snake_DrawHeader();
-            Snake_Beep(35);
+            Snake_SelectLevel(next_level, "KNOB LEVEL");
         }
         return;
     }
@@ -1364,7 +1550,7 @@ static void Snake_HandleInput(void)
     }
 
     want = Snake_KeyToDir(key);
-    if (want == next_dir) {
+    if (want == next_dir || Snake_IsReverse(dir, want)) {
         return;
     }
 
@@ -1419,6 +1605,10 @@ static u8 Snake_WaitStep(u16 ms)
 
     while (elapsed < ms) {
         Snake_HandleInput();
+
+        if (restart_request) {
+            return 1;
+        }
 
         if (paused) {
             Delay_ms(20);
@@ -1626,6 +1816,7 @@ int main(void)
     SystemInit();
     GPIO_Configuration();
     Snake_ADCConfiguration();
+    SnakeUart_Init();
     Snake_AudioInit();
     LCD_Init();
     LCD_Clear(BLACK);
@@ -1635,11 +1826,23 @@ int main(void)
     Snake_StartGame();
 
     while (1) {
+        if (restart_request) {
+            restart_request = 0;
+            Snake_StartGame();
+            continue;
+        }
+
         if (!Snake_WaitStep(Snake_StepDelay())) {
             if (!Snake_LoseLife("TIME OUT")) {
                 Snake_GameOver();
                 Snake_StartGame();
             }
+            continue;
+        }
+
+        if (restart_request) {
+            restart_request = 0;
+            Snake_StartGame();
             continue;
         }
 
