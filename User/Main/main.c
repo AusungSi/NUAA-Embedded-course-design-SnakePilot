@@ -1141,9 +1141,9 @@ static void Snake_DrawHomeMode(u8 selected_mode)
 
 static void Snake_DrawHomeSettingsButton(void)
 {
-    LCD_Fill(132, 246, 225, 270, HOME_PANEL);
-    Snake_DrawHomeFrame(132, 246, 225, 270, HOME_TEAL);
-    Snake_ShowText(146, 253, 12, "KEY4 SETTINGS", WHITE, HOME_PANEL, 1);
+    LCD_Fill(122, 236, 221, 270, HOME_PANEL);
+    Snake_DrawHomeFrame(122, 236, 221, 270, HOME_TEAL);
+    Snake_ShowText(132, 244, 12, "KEY4 SETTINGS", WHITE, HOME_PANEL, 1);
 }
 
 static void Snake_DrawVolumeBar(void)
@@ -1973,28 +1973,58 @@ static void Snake_RenderStep(u8 food_changed)
 
 static void Snake_ShowCenter(const char *line1, const char *line2)
 {
-    LCD_Fill(20, 132, LCD_W - 21, 198, BLACK);
-    POINT_COLOR = YELLOW;
-    BACK_COLOR = BLACK;
-    LCD_ShowString(48, 144, 24, (u8 *)line1, 0);
-    POINT_COLOR = WHITE;
-    LCD_ShowString(42, 176, 16, (u8 *)line2, 0);
+    LCD_Fill(12, 124, LCD_W - 13, 206, BLACK);
+    Snake_ShowTextCenter(136, 24, line1, YELLOW, BLACK, 0);
+    Snake_ShowTextCenter(176, 16, line2, WHITE, BLACK, 0);
 }
 
-static void Snake_WaitAnyKey(void)
+static u8 Snake_ResultReturnRequested(void)
+{
+    SnakeUartCmd cmd;
+
+    if (GPIO_ReadInputDataBit(GPIOD, GPIO_Pin_11) == 0) {
+        return 1;
+    }
+
+    while (SnakeUart_PopCommand(&cmd)) {
+        if (cmd.type == SNAKE_UART_CMD_RESET) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void Snake_ClearPendingUartCommands(void)
+{
+    SnakeUartCmd cmd;
+
+    while (SnakeUart_PopCommand(&cmd)) {
+    }
+}
+
+static void Snake_WaitReturnHome(void)
 {
     Snake_AudioStop();
+    restart_request = 0;
+    Snake_ClearPendingUartCommands();
 
-    while (Snake_KeyReadRaw() != 0) {
+    while (GPIO_ReadInputDataBit(GPIOD, GPIO_Pin_11) == 0) {
         Delay_ms(20);
     }
 
-    while (Snake_KeyReadRaw() == 0) {
+    while (!Snake_ResultReturnRequested()) {
+        Delay_ms(20);
+    }
+
+    while (GPIO_ReadInputDataBit(GPIOD, GPIO_Pin_11) == 0) {
         Delay_ms(20);
     }
 
     Delay_ms(250);
     Snake_KeyReset();
+    LCD_Clear(BLACK);
+    Snake_ShowHome();
 }
 
 static void Snake_PlaceFood(void)
@@ -2615,27 +2645,27 @@ static u8 Snake_LoseLife(const char *reason)
 static void Snake_GameOver(void)
 {
     Snake_UpdateBest();
-    Snake_ShowCenter("GAME OVER", "Press any key");
+    Snake_ShowCenter("GAME OVER", "Press KEY1 or R to return");
     Snake_PlayTone(NOTE_C4, 160);
     Snake_PlayTone(NOTE_G3, 230);
-    Snake_WaitAnyKey();
+    Snake_WaitReturnHome();
 }
 
 static void Snake_WinGame(void)
 {
     Snake_UpdateBest();
-    Snake_ShowCenter("YOU WIN", "Press any key");
+    Snake_ShowCenter("YOU WIN", "Press KEY1 or R to return");
     Snake_BeepLevel();
-    Snake_WaitAnyKey();
+    Snake_WaitReturnHome();
 }
 
 static void Snake_NextLevel(void)
 {
     if (level_index + 1 >= LEVEL_COUNT) {
         Snake_UpdateBest();
-        Snake_ShowCenter("YOU WIN", "Press any key");
+        Snake_ShowCenter("YOU WIN", "Press KEY1 or R to return");
         Snake_BeepLevel();
-        Snake_WaitAnyKey();
+        Snake_WaitReturnHome();
         Snake_StartGame();
     } else {
         Snake_ShowCenter("LEVEL CLEAR", "Next level");
@@ -2687,9 +2717,9 @@ int main(void)
             if (Snake_IsDuoMode()) {
                 Snake_ShowCenter(duo_winner == 1 ? "P1 WINS" :
                                 (duo_winner == 2 ? "P2 WINS" : "DRAW"),
-                                "Press any key");
+                                "Press KEY1 or R to return");
                 Snake_BeepLevel();
-                Snake_WaitAnyKey();
+                Snake_WaitReturnHome();
                 Snake_StartGame();
             } else {
                 if (!Snake_LoseLife("CRASH")) {
