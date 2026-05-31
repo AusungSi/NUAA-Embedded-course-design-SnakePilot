@@ -8,8 +8,8 @@
 #define CELL_SIZE       12
 #define BOARD_X         30
 #define BOARD_Y         72
-#define OPEN_WORLD_COLS 28
-#define OPEN_WORLD_ROWS 36
+#define OPEN_WORLD_COLS 40
+#define OPEN_WORLD_ROWS 56
 #define MAX_SNAKE_LEN   (OPEN_WORLD_COLS * OPEN_WORLD_ROWS)
 #define LEVEL_COUNT     5
 #define MUSIC_TICK_MS   5
@@ -358,13 +358,20 @@ static const u16 home_author_glyphs[5][16] = {
 
 static u8 snake_x[MAX_SNAKE_LEN];
 static u8 snake_y[MAX_SNAKE_LEN];
-static u8 prev_snake_x[MAX_SNAKE_LEN];
-static u8 prev_snake_y[MAX_SNAKE_LEN];
 static u16 snake_len;
 static u16 prev_snake_len;
+static u8 prev_snake_head_x;
+static u8 prev_snake_head_y;
+static u8 prev_snake_tail_x;
+static u8 prev_snake_tail_y;
 static u8 snake2_x[MAX_SNAKE_LEN];
 static u8 snake2_y[MAX_SNAKE_LEN];
 static u16 snake2_len;
+static u16 prev_snake2_len;
+static u8 prev_snake2_head_x;
+static u8 prev_snake2_head_y;
+static u8 prev_snake2_tail_x;
+static u8 prev_snake2_tail_y;
 static SnakeDir dir2;
 static SnakeDir next_dir2;
 static u8 turn_pending2;
@@ -1357,9 +1364,30 @@ static char Snake_MapCell(u8 x, u8 y)
             return '#';
         }
 
-        if (((x == 7 || x == 20) && y > 4 && y < 31 && (y % 6) != 0) ||
-            ((y == 10 || y == 25) && x > 3 && x < 24 && (x % 7) != 0)) {
+        if (((x == 8 || x == 31) && y > 5 && y < 50 && (y % 7) != 0) ||
+            ((y == 12 || y == 39) && x > 4 && x < 35 && (x % 8) != 0)) {
             return '#';
+        }
+
+        if (((x > 4 && x < 14) && (y == 24 || y == 25) && x != 9) ||
+            ((x > 25 && x < 36) && (y == 28 || y == 29) && x != 31)) {
+            return '#';
+        }
+
+        if (((x > 14 && x < 25) && (y == 6 || y == 49) && (x % 5) != 0) ||
+            ((y > 16 && y < 23) && (x == 17 || x == 22) && y != 19)) {
+            return '#';
+        }
+
+        if (((x + y) % 17) == 0 && x > 4 && x < 36 && y > 5 && y < 51) {
+            return '#';
+        }
+
+        if ((x == 12 && y == 18) || (x == 27 && y == 43)) {
+            return 'A';
+        }
+        if ((x == 34 && y == 9) || (x == 5 && y == 46)) {
+            return 'B';
         }
 
         return '.';
@@ -1493,12 +1521,19 @@ static void Snake_DrawFood(void)
 
 static void Snake_SaveRenderState(void)
 {
-    u16 i;
-
     prev_snake_len = snake_len;
-    for (i = 0; i < snake_len; i++) {
-        prev_snake_x[i] = snake_x[i];
-        prev_snake_y[i] = snake_y[i];
+    if (snake_len != 0) {
+        prev_snake_head_x = snake_x[0];
+        prev_snake_head_y = snake_y[0];
+        prev_snake_tail_x = snake_x[snake_len - 1];
+        prev_snake_tail_y = snake_y[snake_len - 1];
+    }
+    prev_snake2_len = snake2_len;
+    if (snake2_len != 0) {
+        prev_snake2_head_x = snake2_x[0];
+        prev_snake2_head_y = snake2_y[0];
+        prev_snake2_tail_x = snake2_x[snake2_len - 1];
+        prev_snake2_tail_y = snake2_y[snake2_len - 1];
     }
     prev_food_x = food_x;
     prev_food_y = food_y;
@@ -1521,8 +1556,17 @@ static void Snake_UpdateViewport(void)
         return;
     }
 
-    viewport_x = (head_x > (GRID_COLS / 2)) ? (u8)(head_x - (GRID_COLS / 2)) : 0;
-    viewport_y = (head_y > (GRID_ROWS / 2)) ? (u8)(head_y - (GRID_ROWS / 2)) : 0;
+    if (head_x < viewport_x + 4) {
+        viewport_x = (head_x > 4) ? (u8)(head_x - 4) : 0;
+    } else if (head_x >= viewport_x + GRID_COLS - 4) {
+        viewport_x = (u8)(head_x - GRID_COLS + 5);
+    }
+
+    if (head_y < viewport_y + 5) {
+        viewport_y = (head_y > 5) ? (u8)(head_y - 5) : 0;
+    } else if (head_y >= viewport_y + GRID_ROWS - 5) {
+        viewport_y = (u8)(head_y - GRID_ROWS + 6);
+    }
 
     if (viewport_x > max_x) {
         viewport_x = max_x;
@@ -1586,8 +1630,10 @@ static void Snake_RenderBoard(void)
     u8 wx;
     u8 wy;
 
-    LCD_Fill(BOARD_X, BOARD_Y, BOARD_X + GRID_COLS * CELL_SIZE - 1,
-             BOARD_Y + GRID_ROWS * CELL_SIZE - 1, BLACK);
+    if (!Snake_IsOpenMode()) {
+        LCD_Fill(BOARD_X, BOARD_Y, BOARD_X + GRID_COLS * CELL_SIZE - 1,
+                 BOARD_Y + GRID_ROWS * CELL_SIZE - 1, BLACK);
+    }
 
     for (y = 0; y < GRID_ROWS; y++) {
         for (x = 0; x < GRID_COLS; x++) {
@@ -1651,10 +1697,15 @@ static void Snake_RenderStep(u8 food_changed)
 
     if (prev_snake_len != 0) {
         if (snake_len <= prev_snake_len) {
-            Snake_RestoreCell(prev_snake_x[prev_snake_len - 1],
-                              prev_snake_y[prev_snake_len - 1]);
+            Snake_RestoreCell(prev_snake_tail_x, prev_snake_tail_y);
         }
-        Snake_RestoreCell(prev_snake_x[0], prev_snake_y[0]);
+        Snake_RestoreCell(prev_snake_head_x, prev_snake_head_y);
+        if (Snake_IsDuoMode() && prev_snake2_len != 0) {
+            if (snake2_len <= prev_snake2_len) {
+                Snake_RestoreCell(prev_snake2_tail_x, prev_snake2_tail_y);
+            }
+            Snake_RestoreCell(prev_snake2_head_x, prev_snake2_head_y);
+        }
     } else {
         Snake_Render();
         return;
@@ -1736,7 +1787,16 @@ static void Snake_PlaceFood(void)
         }
     }
 
-    if (level_index == 3 && !Snake_IsOpenMode()) {
+    if (Snake_IsOpenMode()) {
+        u8 r = (u8)Snake_Rand(12);
+        if (r == 0) {
+            food_type = FOOD_POISON;
+        } else if (r == 11 || r == 10) {
+            food_type = FOOD_BONUS;
+        } else {
+            food_type = FOOD_NORMAL;
+        }
+    } else if (level_index == 3) {
         u8 r = (u8)Snake_Rand(10);
         if (r < 2) {
             food_type = FOOD_POISON;
@@ -1755,6 +1815,7 @@ static void Snake_ResetSnake(void)
     snake_len = 4;
     snake2_len = 4;
     prev_snake_len = 0;
+    prev_snake2_len = 0;
     dir = DIR_RIGHT;
     next_dir = DIR_RIGHT;
     dir2 = DIR_LEFT;
@@ -1771,23 +1832,23 @@ static void Snake_ResetSnake(void)
     prev_viewport_y = 0xff;
 
     if (Snake_IsOpenMode()) {
-        snake_x[0] = 14;
-        snake_y[0] = 18;
-        snake_x[1] = 13;
-        snake_y[1] = 18;
-        snake_x[2] = 12;
-        snake_y[2] = 18;
-        snake_x[3] = 11;
-        snake_y[3] = 18;
+        snake_x[0] = 20;
+        snake_y[0] = 28;
+        snake_x[1] = 19;
+        snake_y[1] = 28;
+        snake_x[2] = 18;
+        snake_y[2] = 28;
+        snake_x[3] = 17;
+        snake_y[3] = 28;
 
-        snake2_x[0] = 18;
-        snake2_y[0] = 18;
-        snake2_x[1] = 19;
-        snake2_y[1] = 18;
-        snake2_x[2] = 20;
-        snake2_y[2] = 18;
-        snake2_x[3] = 21;
-        snake2_y[3] = 18;
+        snake2_x[0] = 24;
+        snake2_y[0] = 28;
+        snake2_x[1] = 25;
+        snake2_y[1] = 28;
+        snake2_x[2] = 26;
+        snake2_y[2] = 28;
+        snake2_x[3] = 27;
+        snake2_y[3] = 28;
     } else {
         snake_x[0] = 7;
         snake_y[0] = 10;
@@ -2276,7 +2337,7 @@ static u8 Snake_DuoStep(void)
     }
 
     Snake_ShowDirection();
-    if (Snake_IsDuoMode()) {
+    if (game_mode == GAME_MODE_DUO) {
         Snake_Render();
     } else {
         Snake_RenderStep(food_changed);
