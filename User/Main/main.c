@@ -90,6 +90,8 @@
 
 #define GAME_MODE_STAGE   0
 #define GAME_MODE_CLASSIC 1
+#define GAME_MODE_DUO     2
+#define GAME_MODE_COUNT   3
 
 #define HOME_NAVY       0x000C
 #define HOME_BLUE       0x01D1
@@ -356,12 +358,20 @@ static u8 prev_snake_x[MAX_SNAKE_LEN];
 static u8 prev_snake_y[MAX_SNAKE_LEN];
 static u16 snake_len;
 static u16 prev_snake_len;
+static u8 snake2_x[MAX_SNAKE_LEN];
+static u8 snake2_y[MAX_SNAKE_LEN];
+static u16 snake2_len;
+static SnakeDir dir2;
+static SnakeDir next_dir2;
+static u8 turn_pending2;
+static u8 duo_winner;
 static u8 food_x;
 static u8 food_y;
 static u8 prev_food_x;
 static u8 prev_food_y;
 static u8 food_type;
 static u16 score;
+static u16 score2;
 static u16 high_score;
 static u8 lives;
 static u8 level_index;
@@ -409,6 +419,44 @@ static u8 Snake_IsReverse(SnakeDir from, SnakeDir to)
                 (from == DIR_DOWN && to == DIR_UP) ||
                 (from == DIR_LEFT && to == DIR_RIGHT) ||
                 (from == DIR_RIGHT && to == DIR_LEFT));
+}
+
+static u8 Snake_CommandToDir(SnakeUartCmdType type, SnakeDir *want)
+{
+    if (type == SNAKE_UART_CMD_UP || type == SNAKE_UART_CMD_P2_UP) {
+        *want = DIR_UP;
+    } else if (type == SNAKE_UART_CMD_DOWN || type == SNAKE_UART_CMD_P2_DOWN) {
+        *want = DIR_DOWN;
+    } else if (type == SNAKE_UART_CMD_LEFT || type == SNAKE_UART_CMD_P2_LEFT) {
+        *want = DIR_LEFT;
+    } else if (type == SNAKE_UART_CMD_RIGHT || type == SNAKE_UART_CMD_P2_RIGHT) {
+        *want = DIR_RIGHT;
+    } else {
+        return 0;
+    }
+
+    return 1;
+}
+
+static void Snake_SetP1Direction(SnakeDir want)
+{
+    if (paused || turn_pending || want == next_dir || Snake_IsReverse(dir, want)) {
+        return;
+    }
+
+    next_dir = want;
+    turn_pending = 1;
+}
+
+static void Snake_SetP2Direction(SnakeDir want)
+{
+    if (paused || turn_pending2 || want == next_dir2 ||
+        Snake_IsReverse(dir2, want)) {
+        return;
+    }
+
+    next_dir2 = want;
+    turn_pending2 = 1;
 }
 
 static void Snake_TogglePause(void)
@@ -464,30 +512,18 @@ static void Snake_ApplySerialCommand(const SnakeUartCmd *cmd)
         return;
     }
 
-    if (paused || turn_pending) {
+    if (!Snake_CommandToDir(cmd->type, &want)) {
         return;
     }
 
-    if (cmd->type == SNAKE_UART_CMD_UP) {
-        want = DIR_UP;
-    } else if (cmd->type == SNAKE_UART_CMD_DOWN) {
-        want = DIR_DOWN;
-    } else if (cmd->type == SNAKE_UART_CMD_LEFT) {
-        want = DIR_LEFT;
-    } else if (cmd->type == SNAKE_UART_CMD_RIGHT) {
-        want = DIR_RIGHT;
+    if (cmd->type == SNAKE_UART_CMD_P2_UP ||
+        cmd->type == SNAKE_UART_CMD_P2_DOWN ||
+        cmd->type == SNAKE_UART_CMD_P2_LEFT ||
+        cmd->type == SNAKE_UART_CMD_P2_RIGHT) {
+        Snake_SetP2Direction(want);
     } else {
-        return;
+        Snake_SetP1Direction(want);
     }
-
-    if (want == next_dir || Snake_IsReverse(dir, want)) {
-        return;
-    }
-
-    next_dir = want;
-    turn_pending = 1;
-    Snake_SetStatus("UART MOVE");
-    Snake_DrawHeader();
 }
 
 static void Snake_HandleSerialInput(void)
@@ -521,7 +557,7 @@ static u8 Snake_HandleHomeSerialInput(u8 *selected_level, u8 *selected_mode,
             *open_settings = 1;
         } else if (cmd.type == SNAKE_UART_CMD_UP ||
                    cmd.type == SNAKE_UART_CMD_DOWN) {
-            *selected_mode = (u8)!(*selected_mode);
+            *selected_mode = (u8)((*selected_mode + 1) % GAME_MODE_COUNT);
         }
     }
 
@@ -1020,10 +1056,14 @@ static void Snake_DrawHomeMode(u8 selected_mode)
 {
     LCD_Fill(18, 236, 122, 270, HOME_PANEL);
     Snake_DrawHomeFrame(18, 236, 122, 270,
-                        selected_mode == GAME_MODE_CLASSIC ? HOME_GOLD : HOME_TEAL);
-    Snake_ShowText(31, 244, 12,
-                   selected_mode == GAME_MODE_CLASSIC ? "MODE CLASSIC" : "MODE STAGE",
-                   WHITE, HOME_PANEL, 1);
+                        selected_mode == GAME_MODE_STAGE ? HOME_TEAL : HOME_GOLD);
+    if (selected_mode == GAME_MODE_CLASSIC) {
+        Snake_ShowText(31, 244, 12, "MODE CLASSIC", WHITE, HOME_PANEL, 1);
+    } else if (selected_mode == GAME_MODE_DUO) {
+        Snake_ShowText(43, 244, 12, "MODE DUO", WHITE, HOME_PANEL, 1);
+    } else {
+        Snake_ShowText(37, 244, 12, "MODE STAGE", WHITE, HOME_PANEL, 1);
+    }
 }
 
 static void Snake_DrawHomeSettingsButton(void)
@@ -1269,13 +1309,34 @@ static u8 Snake_OnSnake(u8 x, u8 y, u16 limit)
     return 0;
 }
 
+static u8 Snake2_OnSnake(u8 x, u8 y, u16 limit)
+{
+    u16 i;
+
+    for (i = 0; i < limit; i++) {
+        if (snake2_x[i] == x && snake2_y[i] == y) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 static u8 Snake_CellCanHoldFood(u8 x, u8 y)
 {
     if (Snake_MapCell(x, y) != '.') {
         return 0;
     }
 
-    return (u8)(!Snake_OnSnake(x, y, snake_len));
+    if (Snake_OnSnake(x, y, snake_len)) {
+        return 0;
+    }
+
+    if (game_mode == GAME_MODE_DUO && Snake2_OnSnake(x, y, snake2_len)) {
+        return 0;
+    }
+
+    return 1;
 }
 
 static u16 Snake_CountWalkableCells(void)
@@ -1358,14 +1419,22 @@ static void Snake_DrawHeader(void)
     LCD_ShowNum(102, 4, (u32)(level_index + 1), 1, 16);
     LCD_ShowString(122, 4, 16, (u8 *)level_name[level_index], 0);
 
-    LCD_ShowString(6, 24, 16, (u8 *)"S:", 0);
-    LCD_ShowNum(28, 24, score, 3, 16);
-    LCD_ShowString(70, 24, 16, (u8 *)"B:", 0);
-    LCD_ShowNum(92, 24, high_score, 3, 16);
-    LCD_ShowString(134, 24, 16, (u8 *)"HP:", 0);
-    LCD_ShowNum(166, 24, lives, 1, 16);
+    if (game_mode == GAME_MODE_DUO) {
+        LCD_ShowString(6, 24, 16, (u8 *)"P1:", 0);
+        LCD_ShowNum(38, 24, score, 3, 16);
+        LCD_ShowString(88, 24, 16, (u8 *)"P2:", 0);
+        LCD_ShowNum(120, 24, score2, 3, 16);
+    } else {
+        LCD_ShowString(6, 24, 16, (u8 *)"S:", 0);
+        LCD_ShowNum(28, 24, score, 3, 16);
+        LCD_ShowString(70, 24, 16, (u8 *)"B:", 0);
+        LCD_ShowNum(92, 24, high_score, 3, 16);
+        LCD_ShowString(134, 24, 16, (u8 *)"HP:", 0);
+        LCD_ShowNum(166, 24, lives, 1, 16);
+    }
     LCD_ShowString(190, 24, 16, (u8 *)"T:", 0);
-    if (game_mode == GAME_MODE_CLASSIC || level_time_limit[level_index] == 0) {
+    if (game_mode == GAME_MODE_CLASSIC || game_mode == GAME_MODE_DUO ||
+        level_time_limit[level_index] == 0) {
         LCD_ShowString(212, 24, 16, (u8 *)"--", 0);
     } else {
         LCD_ShowNum(212, 24, time_left, 2, 16);
@@ -1410,6 +1479,16 @@ static void Snake_Render(void)
         }
     }
 
+    if (game_mode == GAME_MODE_DUO) {
+        for (i = 0; i < snake2_len; i++) {
+            if (i == 0) {
+                Snake_DrawCell(snake2_x[i], snake2_y[i], MAGENTA);
+            } else {
+                Snake_DrawCell(snake2_x[i], snake2_y[i], CYAN);
+            }
+        }
+    }
+
     Snake_SaveRenderState();
 }
 
@@ -1443,6 +1522,12 @@ static void Snake_RenderStep(u8 food_changed)
         Snake_DrawCell(snake_x[1], snake_y[1], GREEN);
     }
     Snake_DrawCell(snake_x[0], snake_y[0], YELLOW);
+    if (game_mode == GAME_MODE_DUO) {
+        if (snake2_len > 1) {
+            Snake_DrawCell(snake2_x[1], snake2_y[1], CYAN);
+        }
+        Snake_DrawCell(snake2_x[0], snake2_y[0], MAGENTA);
+    }
     Snake_DrawHeader();
     Snake_SaveRenderState();
 }
@@ -1519,10 +1604,15 @@ static void Snake_PlaceFood(void)
 static void Snake_ResetSnake(void)
 {
     snake_len = 4;
+    snake2_len = 4;
     prev_snake_len = 0;
     dir = DIR_RIGHT;
     next_dir = DIR_RIGHT;
+    dir2 = DIR_LEFT;
+    next_dir2 = DIR_LEFT;
     turn_pending = 0;
+    turn_pending2 = 0;
+    duo_winner = 0;
     paused = 0;
     restart_request = 0;
     time_acc_ms = 0;
@@ -1536,6 +1626,15 @@ static void Snake_ResetSnake(void)
     snake_x[3] = 4;
     snake_y[3] = 10;
 
+    snake2_x[0] = 11;
+    snake2_y[0] = 10;
+    snake2_x[1] = 12;
+    snake2_y[1] = 10;
+    snake2_x[2] = 13;
+    snake2_y[2] = 10;
+    snake2_x[3] = 14;
+    snake2_y[3] = 10;
+
     Snake_KeyReset();
     Snake_KnobReset();
     Snake_ShowDirection();
@@ -1547,7 +1646,11 @@ static void Snake_StartLevel(u8 lv)
     level_score = 0;
     time_left = (game_mode == GAME_MODE_CLASSIC) ? 0 : level_time_limit[level_index];
     classic_target_len = Snake_CountWalkableCells();
-    Snake_SetStatus(game_mode == GAME_MODE_CLASSIC ? "CLASSIC" : "K1+K2 Pause");
+    if (game_mode == GAME_MODE_DUO) {
+        Snake_SetStatus("DUO");
+    } else {
+        Snake_SetStatus(game_mode == GAME_MODE_CLASSIC ? "CLASSIC" : "K1+K2 Pause");
+    }
     Snake_MusicSetLevel(level_index);
     Snake_ResetSnake();
     rng_state ^= 0x5a5a0000u + score + GPIO_ReadInputData(GPIOA);
@@ -1558,6 +1661,7 @@ static void Snake_StartLevel(u8 lv)
 static void Snake_StartGame(void)
 {
     score = 0;
+    score2 = 0;
     lives = 3;
     Snake_StartLevel(start_level);
 }
@@ -1693,6 +1797,10 @@ static u8 Snake_TimerTick(u16 ms)
     }
 
     if (level_time_limit[level_index] == 0) {
+        return 1;
+    }
+
+    if (game_mode == GAME_MODE_DUO) {
         return 1;
     }
 
@@ -1876,6 +1984,123 @@ static u8 Snake_Step(void)
     return result;
 }
 
+static void Snake_AdvancePoint(SnakeDir move_dir, signed char *x, signed char *y)
+{
+    if (move_dir == DIR_UP) (*y)--;
+    else if (move_dir == DIR_DOWN) (*y)++;
+    else if (move_dir == DIR_LEFT) (*x)--;
+    else (*x)++;
+}
+
+static void Snake_MoveBody(u8 *x, u8 *y, u16 len,
+                           signed char nx, signed char ny)
+{
+    int i;
+
+    for (i = (int)len - 1; i > 0; i--) {
+        x[i] = x[i - 1];
+        y[i] = y[i - 1];
+    }
+
+    x[0] = (u8)nx;
+    y[0] = (u8)ny;
+}
+
+static u8 Snake_DuoHitWallOrMap(signed char x, signed char y)
+{
+    if (x < 0 || x >= GRID_COLS || y < 0 || y >= GRID_ROWS) {
+        return 1;
+    }
+
+    return (u8)(Snake_MapCell((u8)x, (u8)y) == '#');
+}
+
+static u8 Snake_DuoStep(void)
+{
+    signed char nx1 = (signed char)snake_x[0];
+    signed char ny1 = (signed char)snake_y[0];
+    signed char nx2 = (signed char)snake2_x[0];
+    signed char ny2 = (signed char)snake2_y[0];
+    u8 p1_dead = 0;
+    u8 p2_dead = 0;
+    u8 eat1;
+    u8 eat2;
+    u16 check_len1;
+    u16 check_len2;
+    u8 food_changed = 0;
+
+    dir = next_dir;
+    dir2 = next_dir2;
+    turn_pending = 0;
+    turn_pending2 = 0;
+
+    Snake_AdvancePoint(dir, &nx1, &ny1);
+    Snake_AdvancePoint(dir2, &nx2, &ny2);
+
+    p1_dead = Snake_DuoHitWallOrMap(nx1, ny1);
+    p2_dead = Snake_DuoHitWallOrMap(nx2, ny2);
+
+    eat1 = (u8)(!p1_dead && (u8)nx1 == food_x && (u8)ny1 == food_y);
+    eat2 = (u8)(!p2_dead && (u8)nx2 == food_x && (u8)ny2 == food_y);
+    check_len1 = eat1 ? snake_len : (u16)(snake_len - 1);
+    check_len2 = eat2 ? snake2_len : (u16)(snake2_len - 1);
+
+    if (!p1_dead && Snake_OnSnake((u8)nx1, (u8)ny1, check_len1)) {
+        p1_dead = 1;
+    }
+    if (!p2_dead && Snake2_OnSnake((u8)nx2, (u8)ny2, check_len2)) {
+        p2_dead = 1;
+    }
+    if (!p1_dead && Snake2_OnSnake((u8)nx1, (u8)ny1, check_len2)) {
+        p1_dead = 1;
+    }
+    if (!p2_dead && Snake_OnSnake((u8)nx2, (u8)ny2, check_len1)) {
+        p2_dead = 1;
+    }
+    if (!p1_dead && !p2_dead && nx1 == nx2 && ny1 == ny2) {
+        p1_dead = 1;
+        p2_dead = 1;
+    }
+
+    if (p1_dead || p2_dead) {
+        if (p1_dead && p2_dead) duo_winner = 3;
+        else duo_winner = p1_dead ? 2 : 1;
+        Snake_SetStatus(duo_winner == 1 ? "P1 WINS" :
+                        (duo_winner == 2 ? "P2 WINS" : "DRAW"));
+        Snake_Render();
+        return STEP_DEAD;
+    }
+
+    if (eat1 && snake_len < MAX_SNAKE_LEN) {
+        snake_len++;
+        score++;
+        food_changed = 1;
+    }
+    if (eat2 && snake2_len < MAX_SNAKE_LEN) {
+        snake2_len++;
+        score2++;
+        food_changed = 1;
+    }
+
+    Snake_MoveBody(snake_x, snake_y, snake_len, nx1, ny1);
+    Snake_MoveBody(snake2_x, snake2_y, snake2_len, nx2, ny2);
+
+    if (food_changed) {
+        Snake_SetStatus(eat1 && eat2 ? "BOTH" : (eat1 ? "P1 +" : "P2 +"));
+        Snake_PlaceFood();
+    } else {
+        Snake_SetStatus("DUO");
+    }
+
+    Snake_ShowDirection();
+    if (game_mode == GAME_MODE_DUO) {
+        Snake_Render();
+    } else {
+        Snake_RenderStep(food_changed);
+    }
+    return STEP_ALIVE;
+}
+
 static u8 Snake_LoseLife(const char *reason)
 {
     if (lives > 0) {
@@ -1972,11 +2197,20 @@ int main(void)
             continue;
         }
 
-        step_result = Snake_Step();
+        step_result = (game_mode == GAME_MODE_DUO) ? Snake_DuoStep() : Snake_Step();
         if (step_result == STEP_DEAD) {
-            if (!Snake_LoseLife("CRASH")) {
-                Snake_GameOver();
+            if (game_mode == GAME_MODE_DUO) {
+                Snake_ShowCenter(duo_winner == 1 ? "P1 WINS" :
+                                (duo_winner == 2 ? "P2 WINS" : "DRAW"),
+                                "Press any key");
+                Snake_BeepLevel();
+                Snake_WaitAnyKey();
                 Snake_StartGame();
+            } else {
+                if (!Snake_LoseLife("CRASH")) {
+                    Snake_GameOver();
+                    Snake_StartGame();
+                }
             }
         } else if (step_result == STEP_LEVEL_DONE) {
             Snake_NextLevel();

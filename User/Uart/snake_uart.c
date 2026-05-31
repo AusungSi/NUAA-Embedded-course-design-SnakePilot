@@ -5,6 +5,7 @@
 static volatile SnakeUartCmd uart_cmd_buf[SNAKE_UART_CMD_BUF_SIZE];
 static volatile u8 uart_cmd_head;
 static volatile u8 uart_cmd_tail;
+static volatile u8 uart_esc_state;
 
 static void SnakeUart_PushCommand(SnakeUartCmdType type, u8 value)
 {
@@ -19,6 +20,30 @@ static void SnakeUart_PushCommand(SnakeUartCmdType type, u8 value)
 
 static void SnakeUart_ParseByte(u8 ch)
 {
+    if (uart_esc_state == 1) {
+        uart_esc_state = (ch == '[') ? 2 : 0;
+        return;
+    }
+
+    if (uart_esc_state == 2) {
+        uart_esc_state = 0;
+        if (ch == 'A') {
+            SnakeUart_PushCommand(SNAKE_UART_CMD_P2_UP, 0);
+        } else if (ch == 'B') {
+            SnakeUart_PushCommand(SNAKE_UART_CMD_P2_DOWN, 0);
+        } else if (ch == 'C') {
+            SnakeUart_PushCommand(SNAKE_UART_CMD_P2_RIGHT, 0);
+        } else if (ch == 'D') {
+            SnakeUart_PushCommand(SNAKE_UART_CMD_P2_LEFT, 0);
+        }
+        return;
+    }
+
+    if (ch == 0x1b) {
+        uart_esc_state = 1;
+        return;
+    }
+
     if (ch >= 'a' && ch <= 'z') {
         ch = (u8)(ch - 'a' + 'A');
     }
