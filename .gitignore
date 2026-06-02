@@ -53,3 +53,7 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Keil uVision user-specific GUI layout
+Project/Project.uvguix.86178
+Project/List/*.lst
