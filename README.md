@@ -428,15 +428,38 @@ Keil 工程当前包含的主要源文件包括：
 - 如果 ST-Link 下载失败，可以降低 SWD 频率，或使用 `flash recover stlink` 任务进行硬复位下载。
 - 如果 Keil 或 EIDE 报找不到头文件，检查包含路径是否包含 `Libraries/CMSIS/CoreSupport`、`Libraries/CMSIS/DeviceSupport`、`Libraries/STM32F10x_StdPeriph_Driver_V3.5/inc` 和 `User/Main`、`User/Lcd`、`User/Uart`。
 
-## 可扩展方向
-
-当前版本已经覆盖 GPIO、LCD、ADC、TIM、DAC、DMA、USART 等多个课程实验点。后续如果继续完善，可以优先考虑以下方向：
-
-- Flash 记录：将最高分写入片内 Flash，复位后仍能读取历史记录。
-- 更完整的设置页：增加起始生命值、难度、是否开启背景音乐、串口控制开关等选项。
-- 地图编辑：把 `level_map` 抽象为可配置数据，便于快速增加新关卡。
-- 中断式节拍：将当前轮询式游戏节拍改为定时器中断标志位驱动，减少阻塞式延时对扩展功能的影响。
-
 ## 许可证
 
 本项目使用 MIT License，详见 `LICENSE`。
+
+## 贡献者
+
+感谢以下成员对 SnakePilot 的设计、开发、测试和文档完善所做的贡献。
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center">
+        <a href="https://github.com/dengdeng55525">
+          <img src="https://github.com/dengdeng55525.png?size=100" width="80" height="80" alt="DengDeng" />
+          <br />
+          <sub><b>DengDeng</b></sub>
+        </a>
+      </td>
+      <td align="center">
+        <a href="https://github.com/AusungSi">
+          <img src="https://github.com/AusungSi.png?size=100" width="80" height="80" alt="AusungSi" />
+          <br />
+          <sub><b>AusungSi</b></sub>
+        </a>
+      </td>
+      <td align="center">
+        <a href="https://github.com/Helicopterrrrrrr">
+          <img src="https://github.com/Helicopterrrrrrr.png?size=100" width="80" height="80" alt="Helicopterrrrrrr" />
+          <br />
+          <sub><b>Helicopterrrrrrr</b></sub>
+        </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
