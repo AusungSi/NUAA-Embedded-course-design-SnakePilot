@@ -93,6 +93,8 @@
 #define STEP_DEAD       2
 #define STEP_LEVEL_DONE 3
 #define STEP_WIN        4
+#define STEP_SELF_HIT   5
+#define STEP_SELF_GAME_OVER 6
 
 #define GAME_MODE_STAGE   0
 #define GAME_MODE_CLASSIC 1
@@ -108,6 +110,13 @@
 #define HOME_GOLD       0xFD20
 
 #define KNOB_LEVEL_STEP (4096 / LEVEL_COUNT)
+
+#define SNAKE_FLASH_PAGE_SIZE   0x800UL
+#define SNAKE_FLASH_STORE_ADDR  0x0803F800UL
+#define SNAKE_FLASH_MAGIC       0x534E4B50UL
+#define SNAKE_FLASH_VERSION     0x0001UL
+#define SNAKE_FLASH_XOR_KEY     0xA55A3CC3UL
+#define SNAKE_NO_INDEX          0xFFFFU
 
 typedef enum {
     DIR_UP = 0,
@@ -125,6 +134,13 @@ typedef struct {
     const MusicNote *notes;
     u8 count;
 } LevelMusic;
+
+typedef struct {
+    u32 magic;
+    u32 high_score;
+    u32 settings;
+    u32 checksum;
+} SnakePersistRecord;
 
 static const MusicNote music_level1[] = {
     {NOTE_C4, 260}, {NOTE_E4, 180}, {NOTE_G4, 260}, {NOTE_C5, 380},
@@ -425,15 +441,23 @@ static u8 turn_pending;
 static u8 paused;
 static u8 pause_lock;
 static u8 restart_request;
+static u8 return_home_request;
 static u8 start_level;
 static u8 game_mode;
+static u8 persist_dirty;
 static const char *status_msg = "READY";
+static u16 persisted_high_score;
+static u8 persisted_sound_volume;
+static u8 persisted_game_mode;
 
 static void Snake_AudioStop(void);
 static void Snake_AudioSet(u16 freq);
 static void Snake_Beep(u16 ms);
 static void Snake_SetStatus(const char *msg);
 static void Snake_DrawHeader(void);
+static void Snake_DrawPauseHint(void);
+static void Snake_PersistLoad(void);
+static void Snake_PersistSave(void);
 static void Snake_StartLevel(u8 lv);
 
 static u8 Snake_IsDuoMode(void)
@@ -449,6 +473,106 @@ static u8 Snake_IsOpenMode(void)
 static u8 Snake_IsOpenDuoMode(void)
 {
     return (u8)(game_mode == GAME_MODE_OPEN_DUO);
+}
+
+static u32 Snake_PersistBuildChecksum(u32 high, u32 settings)
+{
+    return SNAKE_FLASH_MAGIC ^ SNAKE_FLASH_VERSION ^
+           high ^ settings ^ SNAKE_FLASH_XOR_KEY;
+}
+
+static void Snake_PersistMarkDirty(void)
+{
+    persist_dirty = 1;
+}
+
+static void Snake_PersistRemember(void)
+{
+    persisted_high_score = high_score;
+    persisted_sound_volume = sound_volume;
+    persisted_game_mode = game_mode;
+    persist_dirty = 0;
+}
+
+static void Snake_PersistLoad(void)
+{
+    const SnakePersistRecord *record =
+        (const SnakePersistRecord *)SNAKE_FLASH_STORE_ADDR;
+    u32 settings;
+    u8 saved_volume;
+    u8 saved_mode;
+
+    if (record->magic != SNAKE_FLASH_MAGIC) {
+        Snake_PersistRemember();
+        return;
+    }
+
+    if (record->checksum !=
+        Snake_PersistBuildChecksum(record->high_score, record->settings)) {
+        Snake_PersistRemember();
+        return;
+    }
+
+    settings = record->settings;
+    saved_volume = (u8)(settings & 0xffu);
+    saved_mode = (u8)((settings >> 8) & 0xffu);
+
+    if (saved_volume > VOLUME_MAX) {
+        saved_volume = VOLUME_DEFAULT;
+    }
+    if (saved_mode >= GAME_MODE_COUNT) {
+        saved_mode = GAME_MODE_STAGE;
+    }
+
+    high_score = (u16)((record->high_score > 999u) ? 999u : record->high_score);
+    sound_volume = saved_volume;
+    game_mode = saved_mode;
+    Snake_PersistRemember();
+}
+
+static void Snake_PersistSave(void)
+{
+    SnakePersistRecord record;
+    FLASH_Status status;
+    u32 settings;
+
+    if (!persist_dirty) {
+        return;
+    }
+
+    settings = (u32)sound_volume | ((u32)game_mode << 8);
+    record.magic = SNAKE_FLASH_MAGIC;
+    record.high_score = high_score;
+    record.settings = settings;
+    record.checksum = Snake_PersistBuildChecksum(record.high_score,
+                                                 record.settings);
+
+    FLASH_Unlock();
+    FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR |
+                    FLASH_FLAG_WRPRTERR);
+
+    status = FLASH_ErasePage(SNAKE_FLASH_STORE_ADDR);
+    if (status == FLASH_COMPLETE) {
+        status = FLASH_ProgramWord(SNAKE_FLASH_STORE_ADDR + 0, record.magic);
+    }
+    if (status == FLASH_COMPLETE) {
+        status = FLASH_ProgramWord(SNAKE_FLASH_STORE_ADDR + 4,
+                                   record.high_score);
+    }
+    if (status == FLASH_COMPLETE) {
+        status = FLASH_ProgramWord(SNAKE_FLASH_STORE_ADDR + 8,
+                                   record.settings);
+    }
+    if (status == FLASH_COMPLETE) {
+        status = FLASH_ProgramWord(SNAKE_FLASH_STORE_ADDR + 12,
+                                   record.checksum);
+    }
+
+    FLASH_Lock();
+
+    if (status == FLASH_COMPLETE) {
+        Snake_PersistRemember();
+    }
 }
 
 static u8 Snake_WorldCols(void)
@@ -536,6 +660,11 @@ static void Snake_TogglePause(void)
     }
     Snake_SetStatus(paused ? "PAUSED" : "RUNNING");
     Snake_DrawHeader();
+    if (paused) {
+        Snake_DrawPauseHint();
+    } else {
+        Snake_Render();
+    }
     Snake_Beep(35);
 }
 
@@ -564,9 +693,16 @@ static void Snake_ApplySerialCommand(const SnakeUartCmd *cmd)
     }
 
     if (cmd->type == SNAKE_UART_CMD_RESET) {
-        restart_request = 1;
-        Snake_SetStatus("UART RESET");
-        Snake_DrawHeader();
+        if (paused) {
+            return_home_request = 1;
+            Snake_SetStatus("EXIT HOME");
+            Snake_DrawHeader();
+            Snake_DrawPauseHint();
+        } else {
+            restart_request = 1;
+            Snake_SetStatus("UART RESET");
+            Snake_DrawHeader();
+        }
         return;
     }
 
@@ -1198,6 +1334,7 @@ static void Snake_ShowSettings(void)
         }
 
         if (Snake_HandleSettingsSerialInput()) {
+            Snake_PersistSave();
             LCD_Clear(BLACK);
             Snake_KeyReset();
             Snake_KnobReset();
@@ -1205,6 +1342,7 @@ static void Snake_ShowSettings(void)
         }
 
         if (sound_volume != last_volume) {
+            Snake_PersistMarkDirty();
             Snake_DrawVolumeBar();
             last_volume = sound_volume;
             Snake_AudioUpdateWave();
@@ -1221,6 +1359,7 @@ static void Snake_ShowSettings(void)
             while (Snake_KeyReadRaw() != 0) {
                 Delay_ms(20);
             }
+            Snake_PersistSave();
             LCD_Clear(BLACK);
             Snake_KeyReset();
             Snake_KnobReset();
@@ -1291,6 +1430,8 @@ static void Snake_ShowHome(void)
                                             &open_settings)) {
                 start_level = selected;
                 game_mode = selected_mode;
+                Snake_PersistMarkDirty();
+                Snake_PersistSave();
                 Snake_Beep(60);
                 Delay_ms(120);
                 LCD_Clear(BLACK);
@@ -1333,6 +1474,8 @@ static void Snake_ShowHome(void)
                 }
                 start_level = selected;
                 game_mode = selected_mode;
+                Snake_PersistMarkDirty();
+                Snake_PersistSave();
                 Delay_ms(120);
                 LCD_Clear(BLACK);
                 Snake_AudioStop();
@@ -1714,6 +1857,12 @@ static void Snake_DrawHeader(void)
     LCD_ShowString(6, 48, 16, (u8 *)status_msg, 0);
 }
 
+static void Snake_DrawPauseHint(void)
+{
+    LCD_Fill(12, 148, LCD_W - 13, 186, BLACK);
+    Snake_ShowTextCenter(160, 16, "Press KEY1 or R to exit", WHITE, BLACK, 0);
+}
+
 static void Snake_RenderViewportAt(u16 board_x, u16 board_y, u8 view_x,
                                    u8 view_y, u8 view_rows)
 {
@@ -1995,6 +2144,19 @@ static u8 Snake_ResultReturnRequested(void)
     return 0;
 }
 
+static u16 Snake_FindOnSnakeIndex(u8 x, u8 y, u16 limit)
+{
+    u16 i;
+
+    for (i = 0; i < limit; i++) {
+        if (snake_x[i] == x && snake_y[i] == y) {
+            return i;
+        }
+    }
+
+    return SNAKE_NO_INDEX;
+}
+
 static void Snake_ClearPendingUartCommands(void)
 {
     SnakeUartCmd cmd;
@@ -2096,6 +2258,7 @@ static void Snake_ResetSnake(void)
     duo_winner = 0;
     paused = 0;
     restart_request = 0;
+    return_home_request = 0;
     time_acc_ms = 0;
     viewport_x = 0;
     viewport_y = 0;
@@ -2234,6 +2397,15 @@ static void Snake_HandleInput(void)
     Snake_KnobScan();
     knob_event = Snake_KnobPopEvent();
 
+    if (paused && (key_press_latch & KEY_UP_MASK)) {
+        key_press_latch &= (u8)(~KEY_UP_MASK);
+        return_home_request = 1;
+        Snake_SetStatus("EXIT HOME");
+        Snake_DrawHeader();
+        Snake_DrawPauseHint();
+        return;
+    }
+
     if ((key_stable & KEY_PAUSE_MASK) == KEY_PAUSE_MASK) {
         if (!pause_lock) {
             Snake_TogglePause();
@@ -2338,6 +2510,15 @@ static u8 Snake_WaitStep(u16 ms)
     while (elapsed < ms) {
         Snake_HandleInput();
 
+        if (return_home_request) {
+            return_home_request = 0;
+            Snake_KeyReset();
+            LCD_Clear(BLACK);
+            Snake_ShowHome();
+            Snake_StartGame();
+            return 1;
+        }
+
         if (restart_request) {
             return 1;
         }
@@ -2380,6 +2561,7 @@ static void Snake_UpdateBest(void)
 {
     if (score > high_score) {
         high_score = score;
+        Snake_PersistMarkDirty();
     }
 }
 
@@ -2427,6 +2609,46 @@ static u8 Snake_ApplyFood(void)
     return STEP_ALIVE;
 }
 
+static u8 Snake_HandleSelfCollision(u16 hit_index)
+{
+    u16 removed_len;
+
+    if (hit_index == SNAKE_NO_INDEX || hit_index >= snake_len) {
+        return STEP_DEAD;
+    }
+
+    removed_len = (u16)(snake_len - hit_index);
+
+    Snake_UpdateBest();
+    if (lives > 0) {
+        lives--;
+    }
+
+    if (score > removed_len) {
+        score = (u16)(score - removed_len);
+    } else {
+        score = 0;
+    }
+
+    if (level_score > removed_len) {
+        level_score = (u8)(level_score - removed_len);
+    } else {
+        level_score = 0;
+    }
+
+    snake_len = hit_index;
+    Snake_SetStatus("SELF HIT");
+    Snake_Render();
+    Snake_PlayTone(NOTE_D4, 150);
+    Snake_PlayTone(NOTE_G3, 120);
+
+    if (lives == 0) {
+        return STEP_SELF_GAME_OVER;
+    }
+
+    return STEP_SELF_HIT;
+}
+
 static u8 Snake_Step(void)
 {
     short nx = (short)snake_x[0];
@@ -2434,6 +2656,7 @@ static u8 Snake_Step(void)
     u8 eat;
     u8 food_changed = 0;
     u16 check_len;
+    u16 self_index;
     int i;
     char cell;
     u8 result;
@@ -2471,8 +2694,9 @@ static u8 Snake_Step(void)
     eat = ((u8)nx == food_x && (u8)ny == food_y);
     check_len = eat ? snake_len : (u16)(snake_len - 1);
 
-    if (Snake_OnSnake((u8)nx, (u8)ny, check_len)) {
-        return STEP_DEAD;
+    self_index = Snake_FindOnSnakeIndex((u8)nx, (u8)ny, check_len);
+    if (self_index != SNAKE_NO_INDEX) {
+        return Snake_HandleSelfCollision(self_index);
     }
 
     if (eat && food_type != FOOD_POISON && snake_len < MAX_SNAKE_LEN) {
@@ -2645,6 +2869,7 @@ static u8 Snake_LoseLife(const char *reason)
 static void Snake_GameOver(void)
 {
     Snake_UpdateBest();
+    Snake_PersistSave();
     Snake_ShowCenter("GAME OVER", "Press KEY1 or R to return");
     Snake_PlayTone(NOTE_C4, 160);
     Snake_PlayTone(NOTE_G3, 230);
@@ -2654,6 +2879,7 @@ static void Snake_GameOver(void)
 static void Snake_WinGame(void)
 {
     Snake_UpdateBest();
+    Snake_PersistSave();
     Snake_ShowCenter("YOU WIN", "Press KEY1 or R to return");
     Snake_BeepLevel();
     Snake_WaitReturnHome();
@@ -2663,6 +2889,7 @@ static void Snake_NextLevel(void)
 {
     if (level_index + 1 >= LEVEL_COUNT) {
         Snake_UpdateBest();
+        Snake_PersistSave();
         Snake_ShowCenter("YOU WIN", "Press KEY1 or R to return");
         Snake_BeepLevel();
         Snake_WaitReturnHome();
@@ -2678,6 +2905,10 @@ static void Snake_NextLevel(void)
 int main(void)
 {
     u8 step_result;
+
+    high_score = 0;
+    game_mode = GAME_MODE_STAGE;
+    Snake_PersistLoad();
 
     SystemInit();
     GPIO_Configuration();
@@ -2715,6 +2946,7 @@ int main(void)
         step_result = Snake_IsDuoMode() ? Snake_DuoStep() : Snake_Step();
         if (step_result == STEP_DEAD) {
             if (Snake_IsDuoMode()) {
+                Snake_PersistSave();
                 Snake_ShowCenter(duo_winner == 1 ? "P1 WINS" :
                                 (duo_winner == 2 ? "P2 WINS" : "DRAW"),
                                 "Press KEY1 or R to return");
@@ -2732,6 +2964,11 @@ int main(void)
         } else if (step_result == STEP_WIN) {
             Snake_WinGame();
             Snake_StartGame();
+        } else if (step_result == STEP_SELF_GAME_OVER) {
+            Snake_GameOver();
+            Snake_StartGame();
+        } else if (step_result == STEP_SELF_HIT) {
+            continue;
         }
     }
 }
