@@ -117,6 +117,9 @@
 #define SNAKE_FLASH_VERSION     0x0001UL
 #define SNAKE_FLASH_XOR_KEY     0xA55A3CC3UL
 #define SNAKE_NO_INDEX          0xFFFFU
+#define SNAKE_FLASH_KEY1        0x45670123UL
+#define SNAKE_FLASH_KEY2        0xCDEF89ABUL
+#define SNAKE_FLASH_TIMEOUT     0x000B0000UL
 
 typedef enum {
     DIR_UP = 0,
@@ -446,9 +449,6 @@ static u8 start_level;
 static u8 game_mode;
 static u8 persist_dirty;
 static const char *status_msg = "READY";
-static u16 persisted_high_score;
-static u8 persisted_sound_volume;
-static u8 persisted_game_mode;
 
 static void Snake_AudioStop(void);
 static void Snake_AudioSet(u16 freq);
@@ -456,8 +456,16 @@ static void Snake_Beep(u16 ms);
 static void Snake_SetStatus(const char *msg);
 static void Snake_DrawHeader(void);
 static void Snake_DrawPauseHint(void);
+static FLASH_Status Snake_FlashWaitReady(void);
+static void Snake_FlashClearStatus(void);
+static void Snake_FlashUnlock(void);
+static void Snake_FlashLock(void);
+static FLASH_Status Snake_FlashErasePage(u32 page_addr);
+static FLASH_Status Snake_FlashProgramHalfWord(u32 address, u16 data);
+static FLASH_Status Snake_FlashProgramWord(u32 address, u32 data);
 static void Snake_PersistLoad(void);
 static void Snake_PersistSave(void);
+static void Snake_Render(void);
 static void Snake_StartLevel(u8 lv);
 
 static u8 Snake_IsDuoMode(void)
@@ -488,10 +496,105 @@ static void Snake_PersistMarkDirty(void)
 
 static void Snake_PersistRemember(void)
 {
-    persisted_high_score = high_score;
-    persisted_sound_volume = sound_volume;
-    persisted_game_mode = game_mode;
     persist_dirty = 0;
+}
+
+static FLASH_Status Snake_FlashWaitReady(void)
+{
+    u32 timeout = SNAKE_FLASH_TIMEOUT;
+
+    while (((FLASH->SR & FLASH_SR_BSY) != 0) && (timeout != 0)) {
+        timeout--;
+    }
+
+    if ((FLASH->SR & FLASH_SR_BSY) != 0) {
+        return FLASH_TIMEOUT;
+    }
+    if ((FLASH->SR & FLASH_SR_PGERR) != 0) {
+        return FLASH_ERROR_PG;
+    }
+    if ((FLASH->SR & FLASH_SR_WRPRTERR) != 0) {
+        return FLASH_ERROR_WRP;
+    }
+
+    return FLASH_COMPLETE;
+}
+
+static void Snake_FlashClearStatus(void)
+{
+    FLASH->SR = FLASH_SR_EOP | FLASH_SR_PGERR | FLASH_SR_WRPRTERR;
+}
+
+static void Snake_FlashUnlock(void)
+{
+    if ((FLASH->CR & FLASH_CR_LOCK) != 0) {
+        FLASH->KEYR = SNAKE_FLASH_KEY1;
+        FLASH->KEYR = SNAKE_FLASH_KEY2;
+    }
+}
+
+static void Snake_FlashLock(void)
+{
+    FLASH->CR |= FLASH_CR_LOCK;
+}
+
+static FLASH_Status Snake_FlashErasePage(u32 page_addr)
+{
+    FLASH_Status status = Snake_FlashWaitReady();
+
+    if (status != FLASH_COMPLETE) {
+        return status;
+    }
+
+    Snake_FlashClearStatus();
+    FLASH->CR |= FLASH_CR_PER;
+    FLASH->AR = page_addr;
+    FLASH->CR |= FLASH_CR_STRT;
+
+    status = Snake_FlashWaitReady();
+    FLASH->CR &= (u32)(~FLASH_CR_PER);
+    Snake_FlashClearStatus();
+    return status;
+}
+
+static FLASH_Status Snake_FlashProgramHalfWord(u32 address, u16 data)
+{
+    FLASH_Status status = Snake_FlashWaitReady();
+
+    if (status != FLASH_COMPLETE) {
+        return status;
+    }
+
+    Snake_FlashClearStatus();
+    FLASH->CR |= FLASH_CR_PG;
+    *(volatile u16 *)address = data;
+
+    status = Snake_FlashWaitReady();
+    FLASH->CR &= (u32)(~FLASH_CR_PG);
+    Snake_FlashClearStatus();
+
+    if (status != FLASH_COMPLETE) {
+        return status;
+    }
+
+    if (*(volatile u16 *)address != data) {
+        return FLASH_ERROR_PG;
+    }
+
+    return FLASH_COMPLETE;
+}
+
+static FLASH_Status Snake_FlashProgramWord(u32 address, u32 data)
+{
+    FLASH_Status status;
+
+    status = Snake_FlashProgramHalfWord(address, (u16)(data & 0xffffu));
+    if (status != FLASH_COMPLETE) {
+        return status;
+    }
+
+    return Snake_FlashProgramHalfWord(address + 2,
+                                      (u16)((data >> 16) & 0xffffu));
 }
 
 static void Snake_PersistLoad(void)
@@ -547,28 +650,28 @@ static void Snake_PersistSave(void)
     record.checksum = Snake_PersistBuildChecksum(record.high_score,
                                                  record.settings);
 
-    FLASH_Unlock();
-    FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR |
-                    FLASH_FLAG_WRPRTERR);
+    Snake_FlashUnlock();
+    Snake_FlashClearStatus();
 
-    status = FLASH_ErasePage(SNAKE_FLASH_STORE_ADDR);
+    status = Snake_FlashErasePage(SNAKE_FLASH_STORE_ADDR);
     if (status == FLASH_COMPLETE) {
-        status = FLASH_ProgramWord(SNAKE_FLASH_STORE_ADDR + 0, record.magic);
+        status = Snake_FlashProgramWord(SNAKE_FLASH_STORE_ADDR + 0,
+                                        record.magic);
     }
     if (status == FLASH_COMPLETE) {
-        status = FLASH_ProgramWord(SNAKE_FLASH_STORE_ADDR + 4,
-                                   record.high_score);
+        status = Snake_FlashProgramWord(SNAKE_FLASH_STORE_ADDR + 4,
+                                        record.high_score);
     }
     if (status == FLASH_COMPLETE) {
-        status = FLASH_ProgramWord(SNAKE_FLASH_STORE_ADDR + 8,
-                                   record.settings);
+        status = Snake_FlashProgramWord(SNAKE_FLASH_STORE_ADDR + 8,
+                                        record.settings);
     }
     if (status == FLASH_COMPLETE) {
-        status = FLASH_ProgramWord(SNAKE_FLASH_STORE_ADDR + 12,
-                                   record.checksum);
+        status = Snake_FlashProgramWord(SNAKE_FLASH_STORE_ADDR + 12,
+                                        record.checksum);
     }
 
-    FLASH_Lock();
+    Snake_FlashLock();
 
     if (status == FLASH_COMPLETE) {
         Snake_PersistRemember();
