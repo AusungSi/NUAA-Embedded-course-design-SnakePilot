@@ -17,7 +17,7 @@
 #define MAX_SNAKE_LEN   (OPEN_WORLD_COLS * OPEN_WORLD_ROWS)
 #define LEVEL_COUNT     5
 #define MUSIC_TICK_MS   5
-#define MUSIC_COUNT(a)  ((u8)(sizeof(a) / sizeof((a)[0])))
+#define MUSIC_COUNT(a)  ((u16)(sizeof(a) / sizeof((a)[0])))
 
 #define NOTE_REST       0
 #define NOTE_C3         131
@@ -135,7 +135,7 @@ typedef struct {
 
 typedef struct {
     const MusicNote *notes;
-    u8 count;
+    u16 count;
 } LevelMusic;
 
 typedef struct {
@@ -206,14 +206,7 @@ static const MusicNote music_level5[] = {
 };
 
 static const MusicNote music_home[] = {
-    {NOTE_E3, 760}, {NOTE_REST, 110}, {NOTE_B3, 520}, {NOTE_E4, 760},
-    {NOTE_G4, 900}, {NOTE_FS4, 420}, {NOTE_D4, 700}, {NOTE_REST, 180},
-    {NOTE_C4, 640}, {NOTE_G3, 520}, {NOTE_B3, 680}, {NOTE_E4, 980},
-    {NOTE_REST, 220},
-    {NOTE_A3, 700}, {NOTE_E4, 420}, {NOTE_C5, 820}, {NOTE_B4, 360},
-    {NOTE_G4, 780}, {NOTE_FS4, 420}, {NOTE_E4, 980}, {NOTE_REST, 220},
-    {NOTE_D4, 620}, {NOTE_A3, 460}, {NOTE_D5, 760}, {NOTE_C5, 420},
-    {NOTE_B4, 920}, {NOTE_G4, 520}, {NOTE_E4, 1120}, {NOTE_REST, 260}
+    #include "music_home_data.inc"
 };
 
 static const LevelMusic level_music[LEVEL_COUNT] = {
@@ -422,8 +415,8 @@ static u8 prev_viewport2_y;
 static u8 time_left;
 static u16 time_acc_ms;
 static const MusicNote *music_notes;
-static u8 music_count;
-static u8 music_index;
+static u16 music_count;
+static u16 music_index;
 static u16 music_left_ms;
 static u16 music_gap_ms;
 static u16 music_freq;
@@ -1158,7 +1151,7 @@ static void Snake_PlayTone(u16 freq, u16 ms)
     Snake_AudioSet(saved_freq);
 }
 
-static void Snake_MusicSelect(const MusicNote *notes, u8 count)
+static void Snake_MusicSelect(const MusicNote *notes, u16 count)
 {
     music_notes = notes;
     music_count = count;
