@@ -476,6 +476,11 @@ static u8 Snake_IsOpenDuoMode(void)
     return (u8)(game_mode == GAME_MODE_OPEN_DUO);
 }
 
+static u32 Snake_PersistBuildSettings(void)
+{
+    return (u32)sound_volume | ((u32)game_mode << 8);
+}
+
 static u32 Snake_PersistBuildChecksum(u32 high, u32 settings)
 {
     return SNAKE_FLASH_MAGIC ^ SNAKE_FLASH_VERSION ^
@@ -629,6 +634,8 @@ static void Snake_PersistLoad(void)
 static void Snake_PersistSave(void)
 {
     SnakePersistRecord record;
+    const SnakePersistRecord *saved =
+        (const SnakePersistRecord *)SNAKE_FLASH_STORE_ADDR;
     FLASH_Status status;
     u32 settings;
 
@@ -636,12 +643,20 @@ static void Snake_PersistSave(void)
         return;
     }
 
-    settings = (u32)sound_volume | ((u32)game_mode << 8);
+    settings = Snake_PersistBuildSettings();
     record.magic = SNAKE_FLASH_MAGIC;
     record.high_score = high_score;
     record.settings = settings;
     record.checksum = Snake_PersistBuildChecksum(record.high_score,
                                                  record.settings);
+
+    if (saved->magic == record.magic &&
+        saved->high_score == record.high_score &&
+        saved->settings == record.settings &&
+        saved->checksum == record.checksum) {
+        Snake_PersistRemember();
+        return;
+    }
 
     Snake_FlashUnlock();
     Snake_FlashClearStatus();
@@ -1525,8 +1540,10 @@ static void Snake_ShowHome(void)
             if (Snake_HandleHomeSerialInput(&selected, &selected_mode,
                                             &open_settings)) {
                 start_level = selected;
+                if (game_mode != selected_mode) {
+                    Snake_PersistMarkDirty();
+                }
                 game_mode = selected_mode;
-                Snake_PersistMarkDirty();
                 Snake_PersistSave();
                 Snake_Beep(60);
                 Delay_ms(120);
@@ -1569,8 +1586,10 @@ static void Snake_ShowHome(void)
                     Snake_MusicTick(20);
                 }
                 start_level = selected;
+                if (game_mode != selected_mode) {
+                    Snake_PersistMarkDirty();
+                }
                 game_mode = selected_mode;
-                Snake_PersistMarkDirty();
                 Snake_PersistSave();
                 Delay_ms(120);
                 LCD_Clear(BLACK);
