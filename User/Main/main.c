@@ -102,6 +102,7 @@
 #define GAME_MODE_OPEN    3
 #define GAME_MODE_OPEN_DUO 4
 #define GAME_MODE_COUNT   5
+#define RANKING_TOP_COUNT 5
 
 #define HOME_NAVY       0x000C
 #define HOME_BLUE       0x01D1
@@ -114,7 +115,7 @@
 #define SNAKE_FLASH_PAGE_SIZE   0x800UL
 #define SNAKE_FLASH_STORE_ADDR  0x0803F800UL
 #define SNAKE_FLASH_MAGIC       0x534E4B50UL
-#define SNAKE_FLASH_VERSION     0x0001UL
+#define SNAKE_FLASH_VERSION     0x0002UL
 #define SNAKE_FLASH_XOR_KEY     0xA55A3CC3UL
 #define SNAKE_NO_INDEX          0xFFFFU
 #define SNAKE_FLASH_KEY1        0x45670123UL
@@ -140,8 +141,10 @@ typedef struct {
 
 typedef struct {
     u32 magic;
+    u32 version;
     u32 high_score;
     u32 settings;
+    u32 rankings[GAME_MODE_COUNT][RANKING_TOP_COUNT];
     u32 checksum;
 } SnakePersistRecord;
 
@@ -441,7 +444,9 @@ static u8 return_home_request;
 static u8 start_level;
 static u8 game_mode;
 static u8 persist_dirty;
+static u8 force_board_clear;
 static const char *status_msg = "READY";
+static u16 ranking_scores[GAME_MODE_COUNT][RANKING_TOP_COUNT];
 
 static void Snake_AudioStop(void);
 static void Snake_AudioSet(u16 freq);
@@ -449,6 +454,16 @@ static void Snake_Beep(u16 ms);
 static void Snake_SetStatus(const char *msg);
 static void Snake_DrawHeader(void);
 static void Snake_DrawPauseHint(void);
+static const char *Snake_RankingModeText(u8 mode);
+static void Snake_RankingResetAll(void);
+static void Snake_RankingInsert(u8 mode, u16 score_value);
+static void Snake_RecordModeResults(void);
+static void Snake_PersistMarkDirty(void);
+static u8 Snake_HandleRankingSerialInput(u8 *selected_mode);
+static void Snake_DrawRankingTable(u8 selected_mode);
+static void Snake_DrawRankingScreen(u8 selected_mode);
+static void Snake_ShowRanking(void);
+static void Snake_ClearPendingUartCommands(void);
 static FLASH_Status Snake_FlashWaitReady(void);
 static void Snake_FlashClearStatus(void);
 static void Snake_FlashUnlock(void);
@@ -476,15 +491,73 @@ static u8 Snake_IsOpenDuoMode(void)
     return (u8)(game_mode == GAME_MODE_OPEN_DUO);
 }
 
+static const char *Snake_RankingModeText(u8 mode)
+{
+    if (mode == GAME_MODE_CLASSIC) return "MODE CLASSIC";
+    if (mode == GAME_MODE_DUO) return "MODE DUO";
+    if (mode == GAME_MODE_OPEN) return "MODE OPEN";
+    if (mode == GAME_MODE_OPEN_DUO) return "MODE OPENDUO";
+    return "MODE STAGE";
+}
+
+static void Snake_RankingResetAll(void)
+{
+    u8 mode;
+    u8 rank;
+
+    for (mode = 0; mode < GAME_MODE_COUNT; mode++) {
+        for (rank = 0; rank < RANKING_TOP_COUNT; rank++) {
+            ranking_scores[mode][rank] = 0;
+        }
+    }
+}
+
+static void Snake_RankingInsert(u8 mode, u16 score_value)
+{
+    u8 i;
+    u8 j;
+
+    if (mode >= GAME_MODE_COUNT || score_value == 0) {
+        return;
+    }
+
+    for (i = 0; i < RANKING_TOP_COUNT; i++) {
+        if (score_value > ranking_scores[mode][i]) {
+            for (j = (u8)(RANKING_TOP_COUNT - 1); j > i; j--) {
+                ranking_scores[mode][j] = ranking_scores[mode][j - 1];
+            }
+            ranking_scores[mode][i] = score_value;
+            Snake_PersistMarkDirty();
+            return;
+        }
+    }
+}
+
+static void Snake_RecordModeResults(void)
+{
+    Snake_RankingInsert(game_mode, score);
+    if (Snake_IsDuoMode()) {
+        Snake_RankingInsert(game_mode, score2);
+    }
+}
+
 static u32 Snake_PersistBuildSettings(void)
 {
     return (u32)sound_volume | ((u32)game_mode << 8);
 }
 
-static u32 Snake_PersistBuildChecksum(u32 high, u32 settings)
+static u32 Snake_PersistBuildChecksum(const SnakePersistRecord *record)
 {
-    return SNAKE_FLASH_MAGIC ^ SNAKE_FLASH_VERSION ^
-           high ^ settings ^ SNAKE_FLASH_XOR_KEY;
+    const u32 *words = (const u32 *)record;
+    u16 i;
+    u32 checksum = SNAKE_FLASH_XOR_KEY;
+
+    for (i = 0; i < (u16)((sizeof(SnakePersistRecord) / sizeof(u32)) - 1); i++) {
+        checksum ^= words[i];
+        checksum = (checksum << 1) | (checksum >> 31);
+    }
+
+    return checksum;
 }
 
 static void Snake_PersistMarkDirty(void)
@@ -602,14 +675,18 @@ static void Snake_PersistLoad(void)
     u32 settings;
     u8 saved_volume;
     u8 saved_mode;
+    u8 mode;
+    u8 rank;
 
-    if (record->magic != SNAKE_FLASH_MAGIC) {
+    Snake_RankingResetAll();
+
+    if (record->magic != SNAKE_FLASH_MAGIC ||
+        record->version != SNAKE_FLASH_VERSION) {
         Snake_PersistRemember();
         return;
     }
 
-    if (record->checksum !=
-        Snake_PersistBuildChecksum(record->high_score, record->settings)) {
+    if (record->checksum != Snake_PersistBuildChecksum(record)) {
         Snake_PersistRemember();
         return;
     }
@@ -628,6 +705,13 @@ static void Snake_PersistLoad(void)
     high_score = (u16)((record->high_score > 999u) ? 999u : record->high_score);
     sound_volume = saved_volume;
     game_mode = saved_mode;
+    for (mode = 0; mode < GAME_MODE_COUNT; mode++) {
+        for (rank = 0; rank < RANKING_TOP_COUNT; rank++) {
+            ranking_scores[mode][rank] =
+                (u16)((record->rankings[mode][rank] > 999u) ?
+                999u : record->rankings[mode][rank]);
+        }
+    }
     Snake_PersistRemember();
 }
 
@@ -638,6 +722,10 @@ static void Snake_PersistSave(void)
         (const SnakePersistRecord *)SNAKE_FLASH_STORE_ADDR;
     FLASH_Status status;
     u32 settings;
+    u16 i;
+    u8 mode;
+    u8 rank;
+    u8 same = 1;
 
     if (!persist_dirty) {
         return;
@@ -645,15 +733,24 @@ static void Snake_PersistSave(void)
 
     settings = Snake_PersistBuildSettings();
     record.magic = SNAKE_FLASH_MAGIC;
+    record.version = SNAKE_FLASH_VERSION;
     record.high_score = high_score;
     record.settings = settings;
-    record.checksum = Snake_PersistBuildChecksum(record.high_score,
-                                                 record.settings);
+    for (mode = 0; mode < GAME_MODE_COUNT; mode++) {
+        for (rank = 0; rank < RANKING_TOP_COUNT; rank++) {
+            record.rankings[mode][rank] = ranking_scores[mode][rank];
+        }
+    }
+    record.checksum = Snake_PersistBuildChecksum(&record);
 
-    if (saved->magic == record.magic &&
-        saved->high_score == record.high_score &&
-        saved->settings == record.settings &&
-        saved->checksum == record.checksum) {
+    for (i = 0; i < (u16)(sizeof(SnakePersistRecord) / sizeof(u32)); i++) {
+        if (((const u32 *)saved)[i] != ((const u32 *)&record)[i]) {
+            same = 0;
+            break;
+        }
+    }
+
+    if (same) {
         Snake_PersistRemember();
         return;
     }
@@ -668,15 +765,29 @@ static void Snake_PersistSave(void)
     }
     if (status == FLASH_COMPLETE) {
         status = Snake_FlashProgramWord(SNAKE_FLASH_STORE_ADDR + 4,
-                                        record.high_score);
+                                        record.version);
     }
     if (status == FLASH_COMPLETE) {
         status = Snake_FlashProgramWord(SNAKE_FLASH_STORE_ADDR + 8,
-                                        record.settings);
+                                        record.high_score);
     }
     if (status == FLASH_COMPLETE) {
         status = Snake_FlashProgramWord(SNAKE_FLASH_STORE_ADDR + 12,
-                                        record.checksum);
+                                        record.settings);
+    }
+    for (mode = 0; mode < GAME_MODE_COUNT && status == FLASH_COMPLETE; mode++) {
+        for (rank = 0; rank < RANKING_TOP_COUNT; rank++) {
+            status = Snake_FlashProgramWord(
+                SNAKE_FLASH_STORE_ADDR + 16 +
+                ((mode * RANKING_TOP_COUNT + rank) * 4UL),
+                record.rankings[mode][rank]);
+        }
+    }
+    if (status == FLASH_COMPLETE) {
+        status = Snake_FlashProgramWord(
+            SNAKE_FLASH_STORE_ADDR + 16 +
+            (GAME_MODE_COUNT * RANKING_TOP_COUNT * 4UL),
+            record.checksum);
     }
 
     Snake_FlashLock();
@@ -1512,7 +1623,7 @@ static void Snake_ShowHome(void)
     Snake_DrawHomeLevels(selected);
     Snake_DrawHomeMode(selected_mode);
 
-    Snake_ShowTextCenter(250, 12, "A/D level  W/S mode  Space start",
+    Snake_ShowTextCenter(250, 12, "K3 rank  K4 settings  Space start",
                          LGRAY, BLACK, 1);
     Snake_DrawHomeSettingsButton();
     Snake_DrawHomePrompt(blink);
@@ -1575,6 +1686,13 @@ static void Snake_ShowHome(void)
             if (raw_key & KEY_RIGHT_MASK) {
                 Snake_AudioStop();
                 Snake_ShowSettings();
+                LCD_Clear(BLACK);
+                Snake_ShowHome();
+                return;
+            }
+            if (raw_key & KEY_LEFT_MASK) {
+                Snake_AudioStop();
+                Snake_ShowRanking();
                 LCD_Clear(BLACK);
                 Snake_ShowHome();
                 return;
@@ -1745,6 +1863,158 @@ static void Snake_DrawCellAt(u16 board_x, u16 board_y, u8 x, u8 y, u16 color)
     LCD_Fill(px + 1, py + 1, px + CELL_W - 2, py + CELL_H - 2, color);
 }
 
+static void Snake_DrawMapTile(u8 x, u8 y, u16 color)
+{
+    u16 px = BOARD_X + (u16)x * CELL_W;
+    u16 py = BOARD_Y + (u16)y * CELL_H;
+
+    LCD_Fill(px, py, px + CELL_W - 1, py + CELL_H - 1, BLACK);
+    if (color != BLACK) {
+        LCD_Fill(px + 1, py + 1, px + CELL_W - 2, py + CELL_H - 2, color);
+    }
+}
+
+static u8 Snake_HandleRankingSerialInput(u8 *selected_mode)
+{
+    SnakeUartCmd cmd;
+    u8 should_return = 0;
+
+    while (SnakeUart_PopCommand(&cmd)) {
+        if (cmd.type == SNAKE_UART_CMD_RESET ||
+            cmd.type == SNAKE_UART_CMD_START ||
+            cmd.type == SNAKE_UART_CMD_PAUSE) {
+            should_return = 1;
+        } else if (cmd.type == SNAKE_UART_CMD_UP ||
+                   cmd.type == SNAKE_UART_CMD_LEFT) {
+            *selected_mode = (u8)((*selected_mode == 0) ?
+                (GAME_MODE_COUNT - 1) : (*selected_mode - 1));
+        } else if (cmd.type == SNAKE_UART_CMD_DOWN ||
+                   cmd.type == SNAKE_UART_CMD_RIGHT) {
+            *selected_mode = (u8)((*selected_mode + 1) % GAME_MODE_COUNT);
+        }
+    }
+
+    return should_return;
+}
+
+static void Snake_DrawRankingTable(u8 selected_mode)
+{
+    u8 i;
+    u16 y;
+
+    LCD_Fill(18, 140, 221, 292, HOME_PANEL);
+    Snake_DrawHomeFrame(18, 140, 221, 292, HOME_TEAL);
+    Snake_ShowText(36, 150, 12, "RANK", WHITE, HOME_PANEL, 1);
+    Snake_ShowText(132, 150, 12, "SCORE", WHITE, HOME_PANEL, 1);
+
+    for (i = 0; i < RANKING_TOP_COUNT; i++) {
+        y = (u16)(176 + i * 22);
+        POINT_COLOR = HOME_BLUE;
+        LCD_DrawLine(30, (u16)(y - 6), 208, (u16)(y - 6));
+
+        POINT_COLOR = HOME_GOLD;
+        BACK_COLOR = HOME_PANEL;
+        LCD_ShowNum(44, y, (u32)(i + 1), 1, 16);
+        Snake_ShowText(58, y, 16, ".", HOME_GOLD, HOME_PANEL, 1);
+
+        if (ranking_scores[selected_mode][i] == 0) {
+            Snake_ShowText(126, y, 16, "---", LGRAY, HOME_PANEL, 1);
+        } else {
+            POINT_COLOR = WHITE;
+            BACK_COLOR = HOME_PANEL;
+            LCD_ShowNum(126, y, ranking_scores[selected_mode][i], 3, 16);
+        }
+    }
+}
+
+static void Snake_DrawRankingScreen(u8 selected_mode)
+{
+    u8 i;
+
+    LCD_Clear(BLACK);
+    LCD_Fill(0, 0, LCD_W - 1, 78, HOME_NAVY);
+    LCD_Fill(0, 78, LCD_W - 1, 124, HOME_BLUE);
+    LCD_Fill(0, 124, LCD_W - 1, LCD_H - 1, BLACK);
+
+    POINT_COLOR = GRAYBLUE;
+    for (i = 0; i < 6; i++) {
+        LCD_DrawLine((u16)(i * 46), 76, (u16)(i * 46 + 24), 122);
+    }
+
+    Snake_ShowTextCenter(20, 16, "RANKING", WHITE, HOME_NAVY, 1);
+    Snake_ShowTextCenter(44, 12, Snake_RankingModeText(selected_mode),
+                         CYAN, HOME_NAVY, 1);
+
+    Snake_DrawHomeSnake();
+    Snake_ShowTextCenter(286, 12, "KNOB MODE  R/ANY KEY BACK",
+                         LGRAY, BLACK, 1);
+    Snake_DrawRankingTable(selected_mode);
+}
+
+static void Snake_ShowRanking(void)
+{
+    u8 selected_mode = game_mode;
+    u8 last_mode = 0xff;
+    u8 raw;
+    u16 knob_value;
+    u16 last_knob_value;
+
+    Snake_ClearPendingUartCommands();
+    while (Snake_KeyReadRaw() != 0) {
+        Delay_ms(20);
+    }
+
+    last_knob_value = Snake_KnobRead();
+
+    while (1) {
+        if (selected_mode != last_mode) {
+            Snake_DrawRankingScreen(selected_mode);
+            last_mode = selected_mode;
+        }
+
+        knob_value = Snake_KnobRead();
+        if ((u16)(knob_value + KNOB_TURN_DELTA) < last_knob_value ||
+            knob_value > (u16)(last_knob_value + KNOB_TURN_DELTA)) {
+            selected_mode = (u8)(knob_value / KNOB_LEVEL_STEP);
+            if (selected_mode >= GAME_MODE_COUNT) {
+                selected_mode = GAME_MODE_COUNT - 1;
+            }
+            last_knob_value = knob_value;
+        }
+
+        if (Snake_HandleRankingSerialInput(&selected_mode)) {
+            LCD_Clear(BLACK);
+            Snake_KeyReset();
+            Snake_KnobReset();
+            return;
+        }
+
+        raw = Snake_KeyReadRaw();
+        if (raw != 0) {
+            while (Snake_KeyReadRaw() != 0) {
+                Delay_ms(20);
+            }
+            LCD_Clear(BLACK);
+            Snake_KeyReset();
+            Snake_KnobReset();
+            return;
+        }
+
+        Delay_ms(40);
+    }
+}
+
+static void Snake_DrawMapTileAt(u16 board_x, u16 board_y, u8 x, u8 y, u16 color)
+{
+    u16 px = board_x + (u16)x * CELL_W;
+    u16 py = board_y + (u16)y * CELL_H;
+
+    LCD_Fill(px, py, px + CELL_W - 1, py + CELL_H - 1, BLACK);
+    if (color != BLACK) {
+        LCD_Fill(px + 1, py + 1, px + CELL_W - 2, py + CELL_H - 2, color);
+    }
+}
+
 static u8 Snake_WorldToViewAt(u8 wx, u8 wy, u8 base_x, u8 base_y,
                               u8 view_rows, u8 *vx, u8 *vy)
 {
@@ -1794,15 +2064,21 @@ static void Snake_DrawWorldCellAt(u16 board_x, u16 board_y, u8 view_x,
 static void Snake_DrawMapCell(u8 x, u8 y)
 {
     char c = Snake_MapCell(x, y);
+    u8 vx;
+    u8 vy;
+
+    if (!Snake_WorldToView(x, y, &vx, &vy)) {
+        return;
+    }
 
     if (c == '#') {
-        Snake_DrawWorldCell(x, y, GRAY);
+        Snake_DrawMapTile(vx, vy, GRAY);
     } else if (c == 'A') {
-        Snake_DrawWorldCell(x, y, CYAN);
+        Snake_DrawMapTile(vx, vy, CYAN);
     } else if (c == 'B') {
-        Snake_DrawWorldCell(x, y, MAGENTA);
+        Snake_DrawMapTile(vx, vy, MAGENTA);
     } else {
-        Snake_DrawWorldCell(x, y, BLACK);
+        Snake_DrawMapTile(vx, vy, BLACK);
     }
 }
 
@@ -1820,8 +2096,9 @@ static void Snake_DrawMapCellAt(u16 board_x, u16 board_y, u8 view_x,
         color = MAGENTA;
     }
 
-    Snake_DrawWorldCellAt(board_x, board_y, view_x, view_y, view_rows,
-                          x, y, color);
+    if (Snake_WorldToViewAt(x, y, view_x, view_y, view_rows, &x, &y)) {
+        Snake_DrawMapTileAt(board_x, board_y, x, y, color);
+    }
 }
 
 static void Snake_DrawFood(void)
@@ -1955,10 +2232,10 @@ static void Snake_DrawHeader(void)
         LCD_ShowNum(166, 24, lives, 1, 16);
     }
     if (Snake_IsOpenMode()) {
-        LCD_ShowString(176, 24, 16, (u8 *)(Snake_IsOpenDuoMode() ? "V1:" : "M:"), 0);
-        LCD_ShowNum(204, 24, viewport_x, 2, 16);
-        LCD_ShowString(220, 24, 16, (u8 *)",", 0);
-        LCD_ShowNum(228, 24, viewport_y, 2, 16);
+        LCD_ShowString(160, 24, 16, (u8 *)(Snake_IsOpenDuoMode() ? "V1:" : "M:"), 0);
+        LCD_ShowNum(186, 24, viewport_x, 2, 16);
+        LCD_ShowString(202, 24, 16, (u8 *)",", 0);
+        LCD_ShowNum(210, 24, viewport_y, 2, 16);
     } else {
         LCD_ShowString(190, 24, 16, (u8 *)"T:", 0);
         if (game_mode == GAME_MODE_CLASSIC || Snake_IsDuoMode() ||
@@ -2008,9 +2285,10 @@ static void Snake_RenderBoard(void)
     u8 wx;
     u8 wy;
 
-    if (!Snake_IsOpenMode()) {
+    if (!Snake_IsOpenMode() || force_board_clear) {
         LCD_Fill(BOARD_X, BOARD_Y, BOARD_X + GRID_COLS * CELL_W - 1,
                  BOARD_Y + GRID_ROWS * CELL_H - 1, BLACK);
+        force_board_clear = 0;
     }
 
     for (y = 0; y < GRID_ROWS; y++) {
@@ -2374,6 +2652,7 @@ static void Snake_ResetSnake(void)
     paused = 0;
     restart_request = 0;
     return_home_request = 0;
+    force_board_clear = 0;
     time_acc_ms = 0;
     viewport_x = 0;
     viewport_y = 0;
@@ -2976,6 +3255,7 @@ static u8 Snake_LoseLife(const char *reason)
     time_left = level_time_limit[level_index];
     Snake_ResetSnake();
     Snake_PlaceFood();
+    force_board_clear = 1;
     Snake_SetStatus("TRY AGAIN");
     Snake_Render();
     return 1;
@@ -2984,6 +3264,7 @@ static u8 Snake_LoseLife(const char *reason)
 static void Snake_GameOver(void)
 {
     Snake_UpdateBest();
+    Snake_RecordModeResults();
     Snake_PersistSave();
     Snake_ShowCenter("GAME OVER", "Press KEY1 or R to return");
     Snake_PlayTone(NOTE_C4, 160);
@@ -2994,6 +3275,7 @@ static void Snake_GameOver(void)
 static void Snake_WinGame(void)
 {
     Snake_UpdateBest();
+    Snake_RecordModeResults();
     Snake_PersistSave();
     Snake_ShowCenter("YOU WIN", "Press KEY1 or R to return");
     Snake_BeepLevel();
@@ -3004,6 +3286,7 @@ static void Snake_NextLevel(void)
 {
     if (level_index + 1 >= LEVEL_COUNT) {
         Snake_UpdateBest();
+        Snake_RecordModeResults();
         Snake_PersistSave();
         Snake_ShowCenter("YOU WIN", "Press KEY1 or R to return");
         Snake_BeepLevel();
@@ -3061,6 +3344,7 @@ int main(void)
         step_result = Snake_IsDuoMode() ? Snake_DuoStep() : Snake_Step();
         if (step_result == STEP_DEAD) {
             if (Snake_IsDuoMode()) {
+                Snake_RecordModeResults();
                 Snake_PersistSave();
                 Snake_ShowCenter(duo_winner == 1 ? "P1 WINS" :
                                 (duo_winner == 2 ? "P2 WINS" : "DRAW"),
