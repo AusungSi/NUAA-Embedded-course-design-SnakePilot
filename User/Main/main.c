@@ -461,7 +461,7 @@ static void Snake_RecordModeResults(void);
 static void Snake_PersistMarkDirty(void);
 static u8 Snake_HandleRankingSerialInput(u8 *selected_mode);
 static void Snake_DrawRankingTable(u8 selected_mode);
-static void Snake_DrawRankingScreen(u8 selected_mode);
+static void Snake_DrawRankingScreen(u8 selected_mode, short snake_x);
 static void Snake_ShowRanking(void);
 static void Snake_ClearPendingUartCommands(void);
 static FLASH_Status Snake_FlashWaitReady(void);
@@ -1414,21 +1414,93 @@ static void Snake_DrawHomeAuthor(u16 y)
     }
 }
 
-static void Snake_DrawHomeSnake(void)
+static void Snake_DrawHomeDecor(void)
 {
     u8 i;
-    const u16 sx[9] = {38, 54, 70, 86, 102, 118, 134, 150, 166};
-    const u16 sy[9] = {104, 104, 104, 92, 92, 92, 104, 104, 104};
 
-    for (i = 0; i < 9; i++) {
-        LCD_Fill(sx[i], sy[i], (u16)(sx[i] + 13), (u16)(sy[i] + 13),
-                 (i == 8) ? YELLOW : GREEN);
-        POINT_COLOR = BLACK;
-        LCD_DrawRectangle(sx[i], sy[i], (u16)(sx[i] + 13), (u16)(sy[i] + 13));
+    POINT_COLOR = GRAYBLUE;
+    for (i = 0; i < 6; i++) {
+        LCD_DrawLine((u16)(i * 46), 76, (u16)(i * 46 + 24), 122);
+    }
+}
+
+static void Snake_FillClippedRect(short x1, short y1, short x2, short y2, u16 color)
+{
+    if (x1 > x2 || y1 > y2) {
+        return;
+    }
+    if (x2 < 0 || y2 < 0 || x1 >= LCD_W || y1 >= LCD_H) {
+        return;
+    }
+    if (x1 < 0) x1 = 0;
+    if (y1 < 0) y1 = 0;
+    if (x2 >= LCD_W) x2 = (short)(LCD_W - 1);
+    if (y2 >= LCD_H) y2 = (short)(LCD_H - 1);
+
+    LCD_Fill((u16)x1, (u16)y1, (u16)x2, (u16)y2, color);
+}
+
+static void Snake_DrawHomeSnake(short snake_x, u8 clear_prev, short prev_snake_x)
+{
+    u8 i;
+    const short sx[9] = {0, 16, 32, 48, 64, 80, 96, 112, 128};
+    const short sy[9] = {104, 104, 104, 92, 92, 92, 104, 104, 104};
+    short clear_left;
+    short clear_right;
+
+    if (clear_prev) {
+        if ((snake_x - prev_snake_x > 80) || (prev_snake_x - snake_x > 80)) {
+            Snake_FillClippedRect((short)(prev_snake_x - 2), 88,
+                                  (short)(prev_snake_x + 144), 118,
+                                  HOME_BLUE);
+            Snake_FillClippedRect((short)(snake_x - 2), 88,
+                                  (short)(snake_x + 144), 118,
+                                  HOME_BLUE);
+        } else {
+            clear_left = (snake_x < prev_snake_x) ? snake_x : prev_snake_x;
+            clear_right = ((snake_x + 142) > (prev_snake_x + 142)) ?
+                          (snake_x + 142) : (prev_snake_x + 142);
+            Snake_FillClippedRect((short)(clear_left - 2), 88,
+                                  (short)(clear_right + 2), 118, HOME_BLUE);
+        }
+        Snake_DrawHomeDecor();
     }
 
-    LCD_Fill(176, 108, 180, 112, RED);
-    LCD_Fill(170, 98, 172, 100, BLACK);
+    for (i = 0; i < 9; i++) {
+        Snake_FillClippedRect((short)(snake_x + sx[i]), sy[i],
+                              (short)(snake_x + sx[i] + 13),
+                              (short)(sy[i] + 13),
+                              (i == 8) ? YELLOW : GREEN);
+        if (snake_x + sx[i] >= 0 && snake_x + sx[i] + 13 < LCD_W) {
+            POINT_COLOR = BLACK;
+            LCD_DrawRectangle((u16)(snake_x + sx[i]), (u16)sy[i],
+                              (u16)(snake_x + sx[i] + 13),
+                              (u16)(sy[i] + 13));
+        }
+    }
+
+    Snake_FillClippedRect((short)(snake_x + 138), 108,
+                          (short)(snake_x + 142), 112, RED);
+    Snake_FillClippedRect((short)(snake_x + 132), 98,
+                          (short)(snake_x + 134), 100, BLACK);
+}
+
+static void Snake_AnimateHomeSnake(short *snake_x, short *prev_snake_x,
+                                   u8 *snake_valid, u8 *anim_tick)
+{
+    *anim_tick = (u8)(*anim_tick + 20);
+    if (*anim_tick < 40) {
+        return;
+    }
+    *anim_tick = 0;
+
+    *prev_snake_x = *snake_x;
+    *snake_x = (short)(*snake_x + 2);
+    if (*snake_x > LCD_W) {
+        *snake_x = -142;
+    }
+    Snake_DrawHomeSnake(*snake_x, *snake_valid, *prev_snake_x);
+    *snake_valid = 1;
 }
 
 static void Snake_DrawHomeLevels(u8 selected)
@@ -1604,22 +1676,24 @@ static void Snake_ShowHome(void)
     u16 last_adc_value;
     u8 raw_key;
     u8 open_settings;
+    short home_snake_x = -142;
+    short prev_home_snake_x = -142;
+    u8 home_snake_valid = 0;
+    u8 home_anim_tick = 0;
 
     LCD_Clear(BLACK);
     LCD_Fill(0, 0, LCD_W - 1, 78, HOME_NAVY);
     LCD_Fill(0, 78, LCD_W - 1, 124, HOME_BLUE);
     LCD_Fill(0, 124, LCD_W - 1, LCD_H - 1, BLACK);
 
-    POINT_COLOR = GRAYBLUE;
-    for (i = 0; i < 6; i++) {
-        LCD_DrawLine((u16)(i * 46), 76, (u16)(i * 46 + 24), 122);
-    }
+    Snake_DrawHomeDecor();
 
     Snake_ShowTextCenter(20, 16, "SnakePilot", WHITE, HOME_NAVY, 1);
     Snake_ShowTextCenter(42, 12, "STM32 SMART SNAKE", CYAN, HOME_NAVY, 1);
     Snake_DrawHomeAuthor(61);
 
-    Snake_DrawHomeSnake();
+    Snake_DrawHomeSnake(home_snake_x, 0, prev_home_snake_x);
+    home_snake_valid = 1;
     Snake_DrawHomeLevels(selected);
     Snake_DrawHomeMode(selected_mode);
 
@@ -1630,6 +1704,8 @@ static void Snake_ShowHome(void)
     Snake_MusicSelect(music_home, MUSIC_COUNT(music_home));
 
     while (Snake_KeyReadRaw() != 0) {
+        Snake_AnimateHomeSnake(&home_snake_x, &prev_home_snake_x,
+                               &home_snake_valid, &home_anim_tick);
         Snake_MusicTick(20);
     }
 
@@ -1701,6 +1777,8 @@ static void Snake_ShowHome(void)
             if (raw_key != 0) {
                 Snake_Beep(60);
                 while (Snake_KeyReadRaw() != 0) {
+                    Snake_AnimateHomeSnake(&home_snake_x, &prev_home_snake_x,
+                                           &home_snake_valid, &home_anim_tick);
                     Snake_MusicTick(20);
                 }
                 start_level = selected;
@@ -1715,6 +1793,8 @@ static void Snake_ShowHome(void)
                 Snake_KeyReset();
                 return;
             }
+            Snake_AnimateHomeSnake(&home_snake_x, &prev_home_snake_x,
+                                   &home_snake_valid, &home_anim_tick);
             Snake_MusicTick(20);
         }
 
@@ -1927,7 +2007,7 @@ static void Snake_DrawRankingTable(u8 selected_mode)
     }
 }
 
-static void Snake_DrawRankingScreen(u8 selected_mode)
+static void Snake_DrawRankingScreen(u8 selected_mode, short snake_x)
 {
     u8 i;
 
@@ -1945,7 +2025,7 @@ static void Snake_DrawRankingScreen(u8 selected_mode)
     Snake_ShowTextCenter(44, 12, Snake_RankingModeText(selected_mode),
                          CYAN, HOME_NAVY, 1);
 
-    Snake_DrawHomeSnake();
+    Snake_DrawHomeSnake(snake_x, 0, snake_x);
     Snake_ShowTextCenter(286, 12, "KNOB MODE  R/ANY KEY BACK",
                          LGRAY, BLACK, 1);
     Snake_DrawRankingTable(selected_mode);
@@ -1958,6 +2038,10 @@ static void Snake_ShowRanking(void)
     u8 raw;
     u16 knob_value;
     u16 last_knob_value;
+    short rank_snake_x = -142;
+    short prev_rank_snake_x = -142;
+    u8 rank_snake_valid = 0;
+    u8 rank_anim_tick = 0;
 
     Snake_ClearPendingUartCommands();
     while (Snake_KeyReadRaw() != 0) {
@@ -1968,7 +2052,8 @@ static void Snake_ShowRanking(void)
 
     while (1) {
         if (selected_mode != last_mode) {
-            Snake_DrawRankingScreen(selected_mode);
+            Snake_DrawRankingScreen(selected_mode, rank_snake_x);
+            rank_snake_valid = 1;
             last_mode = selected_mode;
         }
 
@@ -2000,6 +2085,8 @@ static void Snake_ShowRanking(void)
             return;
         }
 
+        Snake_AnimateHomeSnake(&rank_snake_x, &prev_rank_snake_x,
+                               &rank_snake_valid, &rank_anim_tick);
         Delay_ms(40);
     }
 }
