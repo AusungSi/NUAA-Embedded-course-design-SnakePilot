@@ -1,16 +1,31 @@
 # dot files
-/.vscode
 /.vscode/launch.json
 /.settings
 /.eide/log
 /.eide.usr.ctx.json
+/.eide/debug.*.ini
 
 # project out
 /build
 /bin
 /obj
 /out
+/Obj
+/List
+/DebugConfig
 
 # eide template
 *.ept
 *.eide-template
+
+# Keil/J-Link local state
+/*.uvgui.*
+/*.uvguix.*
+/*.uvopt
+/*.uvoptx
+/JLinkSettings.ini
+/JLink*.txt
+
+# Local VS Code workspace files
+*.code-workspace
+!Project.code-workspace

@@ -55,5 +55,26 @@ dkms.conf
 *.dwo
 
 # Keil uVision user-specific GUI layout
-Project/Project.uvguix.86178
-Project/List/*.lst
+*.uvgui.*
+*.uvguix.*
+*.uvopt
+*.uvoptx
+
+# Keil/J-Link generated local state
+Project/Obj/
+Project/List/
+Project/DebugConfig/
+Project/JLinkSettings.ini
+Project/JLink*.txt
+
+# Local VS Code workspace files
+*.code-workspace
+!Project/Project.code-workspace
+
+# Local coursework/private office documents
+*.xls
+*.xlsx
+*.xlsm
+*.doc
+*.docx
+~$*
