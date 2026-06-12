@@ -184,10 +184,16 @@ void Battle_ResetInput(BattleInput *input)
 
 void Battle_Init(BattleState *state, uint32_t seed)
 {
+    uint8_t i;
+    static const uint8_t start_x[BATTLE_PLAYER_COUNT] = {14, 34, 52, 22, 64};
+    static const uint8_t start_y[BATTLE_PLAYER_COUNT] = {40, 40, 22, 62, 58};
+
     memset(state, 0, sizeof(*state));
     state->rng_state = (seed == 0) ? 0x13572468UL : seed;
-    Battle_SetSnake(&state->snakes[0], 14, 28, BATTLE_DIR_RIGHT);
-    Battle_SetSnake(&state->snakes[1], 26, 28, BATTLE_DIR_LEFT);
+    for (i = 0; i < BATTLE_PLAYER_COUNT; i++) {
+        Battle_SetSnake(&state->snakes[i], start_x[i], start_y[i],
+                        (i & 1U) ? BATTLE_DIR_LEFT : BATTLE_DIR_RIGHT);
+    }
     Battle_MaintainPellets(state);
 }
 
@@ -370,80 +376,83 @@ static void Battle_ApplyMove(BattleState *state, uint8_t player, int16_t nx,
     Battle_MoveSnake(snake, (uint8_t)nx, (uint8_t)ny, new_len);
 }
 
-static void Battle_Step(BattleState *state, uint8_t move_p1, uint8_t move_p2)
+static void Battle_Step(BattleState *state, const uint8_t *move)
 {
-    BattleSnake *p1 = &state->snakes[0];
-    BattleSnake *p2 = &state->snakes[1];
-    int16_t nx[2];
-    int16_t ny[2];
-    uint8_t pellet[2];
-    uint8_t grow[2];
-    uint8_t dead[2] = {0, 0};
+    int16_t nx[BATTLE_PLAYER_COUNT];
+    int16_t ny[BATTLE_PLAYER_COUNT];
+    uint8_t pellet[BATTLE_PLAYER_COUNT];
+    uint8_t grow[BATTLE_PLAYER_COUNT];
+    uint8_t dead[BATTLE_PLAYER_COUNT];
+    uint8_t consumed[BATTLE_MAX_PELLETS];
+    uint8_t i;
+    uint8_t j;
 
-    nx[0] = p1->alive ? p1->x[0] : 0;
-    ny[0] = p1->alive ? p1->y[0] : 0;
-    nx[1] = p2->alive ? p2->x[0] : 0;
-    ny[1] = p2->alive ? p2->y[0] : 0;
+    memset(dead, 0, sizeof(dead));
+    memset(grow, 0, sizeof(grow));
+    memset(consumed, 0, sizeof(consumed));
 
-    if (move_p1 && p1->alive) {
-        p1->dir = p1->next_dir;
-        Battle_Advance(p1->dir, &nx[0], &ny[0]);
-    }
-    if (move_p2 && p2->alive) {
-        p2->dir = p2->next_dir;
-        Battle_Advance(p2->dir, &nx[1], &ny[1]);
-    }
-
-    pellet[0] = move_p1 ? Battle_WillEat(state, nx[0], ny[0]) :
-                          BATTLE_NO_PELLET;
-    pellet[1] = move_p2 ? Battle_WillEat(state, nx[1], ny[1]) :
-                          BATTLE_NO_PELLET;
-    grow[0] = (uint8_t)(pellet[0] != BATTLE_NO_PELLET);
-    grow[1] = (uint8_t)(pellet[1] != BATTLE_NO_PELLET);
-
-    if (move_p1 && !Battle_InWorld(nx[0], ny[0])) {
-        dead[0] = 1;
-    }
-    if (move_p2 && !Battle_InWorld(nx[1], ny[1])) {
-        dead[1] = 1;
-    }
-
-    if (move_p1 && !dead[0]) {
-        dead[0] = Battle_HitsOtherBody(p2, (uint8_t)nx[0], (uint8_t)ny[0],
-                                       move_p2, grow[1]);
-    }
-    if (move_p2 && !dead[1]) {
-        dead[1] = Battle_HitsOtherBody(p1, (uint8_t)nx[1], (uint8_t)ny[1],
-                                       move_p1, grow[0]);
-    }
-
-    if (move_p1 && move_p2 && p1->alive && p2->alive &&
-        nx[0] == nx[1] && ny[0] == ny[1]) {
-        dead[0] = 1;
-        dead[1] = 1;
-    }
-    if (move_p1 && move_p2 && p1->alive && p2->alive &&
-        nx[0] == p2->x[0] && ny[0] == p2->y[0] &&
-        nx[1] == p1->x[0] && ny[1] == p1->y[0]) {
-        dead[0] = 1;
-        dead[1] = 1;
-    }
-
-    if (dead[0]) {
-        Battle_KillSnake(state, 0);
-    }
-    if (dead[1]) {
-        Battle_KillSnake(state, 1);
-    }
-
-    if (move_p1 && !dead[0] && p1->alive) {
-        Battle_ApplyMove(state, 0, nx[0], ny[0], pellet[0]);
-    }
-    if (move_p2 && !dead[1] && p2->alive) {
-        if (pellet[1] == pellet[0] && pellet[1] != BATTLE_NO_PELLET) {
-            pellet[1] = BATTLE_NO_PELLET;
+    for (i = 0; i < BATTLE_PLAYER_COUNT; i++) {
+        BattleSnake *snake = &state->snakes[i];
+        nx[i] = snake->alive ? snake->x[0] : 0;
+        ny[i] = snake->alive ? snake->y[0] : 0;
+        pellet[i] = BATTLE_NO_PELLET;
+        if (move[i] && snake->alive) {
+            snake->dir = snake->next_dir;
+            Battle_Advance(snake->dir, &nx[i], &ny[i]);
+            pellet[i] = Battle_WillEat(state, nx[i], ny[i]);
+            grow[i] = (uint8_t)(pellet[i] != BATTLE_NO_PELLET);
+            if (!Battle_InWorld(nx[i], ny[i])) {
+                dead[i] = 1;
+            }
         }
-        Battle_ApplyMove(state, 1, nx[1], ny[1], pellet[1]);
+    }
+
+    for (i = 0; i < BATTLE_PLAYER_COUNT; i++) {
+        if (!move[i] || dead[i] || !state->snakes[i].alive) {
+            continue;
+        }
+        for (j = 0; j < BATTLE_PLAYER_COUNT; j++) {
+            if (i == j) {
+                continue;
+            }
+            if (Battle_HitsOtherBody(&state->snakes[j], (uint8_t)nx[i],
+                                     (uint8_t)ny[i], move[j], grow[j])) {
+                dead[i] = 1;
+                break;
+            }
+        }
+    }
+
+    for (i = 0; i < BATTLE_PLAYER_COUNT; i++) {
+        if (!move[i] || dead[i] || !state->snakes[i].alive) {
+            continue;
+        }
+        for (j = (uint8_t)(i + 1); j < BATTLE_PLAYER_COUNT; j++) {
+            if (move[j] && !dead[j] && state->snakes[j].alive &&
+                nx[i] == nx[j] && ny[i] == ny[j]) {
+                dead[i] = 1;
+                dead[j] = 1;
+            }
+        }
+    }
+
+    for (i = 0; i < BATTLE_PLAYER_COUNT; i++) {
+        if (dead[i]) {
+            Battle_KillSnake(state, i);
+        }
+    }
+
+    for (i = 0; i < BATTLE_PLAYER_COUNT; i++) {
+        if (move[i] && !dead[i] && state->snakes[i].alive) {
+            if (pellet[i] != BATTLE_NO_PELLET) {
+                if (consumed[pellet[i]]) {
+                    pellet[i] = BATTLE_NO_PELLET;
+                } else {
+                    consumed[pellet[i]] = 1;
+                }
+            }
+            Battle_ApplyMove(state, i, nx[i], ny[i], pellet[i]);
+        }
     }
 
     Battle_MaintainPellets(state);
@@ -452,7 +461,7 @@ static void Battle_Step(BattleState *state, uint8_t move_p1, uint8_t move_p2)
 void Battle_Update(BattleState *state, const BattleInput *input, uint16_t dt_ms)
 {
     uint8_t i;
-    uint8_t move[2];
+    uint8_t move[BATTLE_PLAYER_COUNT];
     BattleSnake *snake;
     uint16_t interval;
 
@@ -510,7 +519,7 @@ void Battle_Update(BattleState *state, const BattleInput *input, uint16_t dt_ms)
             }
         }
         if (move[0] || move[1]) {
-            Battle_Step(state, move[0], move[1]);
+            Battle_Step(state, move);
         }
-    } while (move[0] || move[1]);
+    } while (move[0] || move[1] || move[2] || move[3] || move[4]);
 }

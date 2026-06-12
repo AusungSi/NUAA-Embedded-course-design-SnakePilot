@@ -9,7 +9,8 @@ extern "C" {
 
 #define BATTLE_WORLD_COLS      80
 #define BATTLE_WORLD_ROWS      80
-#define BATTLE_PLAYER_COUNT    2
+#define BATTLE_PLAYER_COUNT    5
+#define BATTLE_AI_COUNT        4
 #define BATTLE_MAX_SNAKE_LEN   512
 #define BATTLE_MAX_PELLETS     192
 #define BATTLE_TARGET_PELLETS  128
