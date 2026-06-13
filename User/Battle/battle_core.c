@@ -462,6 +462,7 @@ void Battle_Update(BattleState *state, const BattleInput *input, uint16_t dt_ms)
 {
     uint8_t i;
     uint8_t move[BATTLE_PLAYER_COUNT];
+    uint8_t any_move;
     BattleSnake *snake;
     uint16_t interval;
 
@@ -504,8 +505,10 @@ void Battle_Update(BattleState *state, const BattleInput *input, uint16_t dt_ms)
     }
 
     do {
-        move[0] = 0;
-        move[1] = 0;
+        any_move = 0;
+        for (i = 0; i < BATTLE_PLAYER_COUNT; i++) {
+            move[i] = 0;
+        }
         for (i = 0; i < BATTLE_PLAYER_COUNT; i++) {
             snake = &state->snakes[i];
             if (!snake->alive) {
@@ -516,10 +519,11 @@ void Battle_Update(BattleState *state, const BattleInput *input, uint16_t dt_ms)
             if (snake->move_acc_ms >= interval) {
                 snake->move_acc_ms = (uint16_t)(snake->move_acc_ms - interval);
                 move[i] = 1;
+                any_move = 1;
             }
         }
-        if (move[0] || move[1]) {
+        if (any_move) {
             Battle_Step(state, move);
         }
-    } while (move[0] || move[1] || move[2] || move[3] || move[4]);
+    } while (any_move);
 }
