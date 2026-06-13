@@ -124,6 +124,7 @@
 #define BATTLE_MUTED    0x8497
 
 #define KNOB_LEVEL_STEP (4096 / LEVEL_COUNT)
+#define KNOB_MODE_STEP  (4096 / GAME_MODE_COUNT)
 
 #define SNAKE_FLASH_PAGE_SIZE   0x800UL
 #define SNAKE_FLASH_STORE_ADDR  0x0803F800UL
@@ -564,6 +565,9 @@ static void Snake_RankingInsert(u8 mode, u16 score_value)
     if (mode >= GAME_MODE_COUNT || score_value == 0) {
         return;
     }
+    if (score_value > 999) {
+        score_value = 999;
+    }
 
     for (i = 0; i < RANKING_TOP_COUNT; i++) {
         if (score_value > ranking_scores[mode][i]) {
@@ -579,9 +583,10 @@ static void Snake_RankingInsert(u8 mode, u16 score_value)
 
 static void Snake_RecordModeResults(void)
 {
-    Snake_RankingInsert(game_mode, score);
     if (Snake_IsDuoMode()) {
-        Snake_RankingInsert(game_mode, score2);
+        Snake_RankingInsert(game_mode, (u16)(score + score2));
+    } else {
+        Snake_RankingInsert(game_mode, score);
     }
 }
 
@@ -929,6 +934,7 @@ static void Snake_TogglePause(void)
     if (paused) {
         Snake_DrawPauseHint();
     } else {
+        LCD_Fill(12, 148, LCD_W - 13, 186, BLACK);
         Snake_Render();
     }
     Snake_Beep(35);
@@ -1026,8 +1032,10 @@ static u8 Snake_HandleHomeSerialInput(u8 *selected_level, u8 *selected_mode,
             should_start = 1;
         } else if (cmd.type == SNAKE_UART_CMD_PAUSE) {
             *open_settings = 1;
-        } else if (cmd.type == SNAKE_UART_CMD_UP ||
-                   cmd.type == SNAKE_UART_CMD_DOWN) {
+        } else if (cmd.type == SNAKE_UART_CMD_UP) {
+            *selected_mode = (u8)((*selected_mode == 0) ?
+                (GAME_MODE_COUNT - 1) : (*selected_mode - 1));
+        } else if (cmd.type == SNAKE_UART_CMD_DOWN) {
             *selected_mode = (u8)((*selected_mode + 1) % GAME_MODE_COUNT);
         }
     }
@@ -2071,10 +2079,11 @@ static void Snake_DrawRankingScreen(u8 selected_mode, short snake_x)
     Snake_ShowTextCenter(44, 12, Snake_RankingModeText(selected_mode),
                          CYAN, HOME_NAVY, 1);
 
-    Snake_DrawHomeSnake(snake_x, 0, snake_x);
-    Snake_ShowTextCenter(286, 12, "KNOB MODE  R/ANY KEY BACK",
-                         LGRAY, BLACK, 1);
     Snake_DrawRankingTable(selected_mode);
+    LCD_Fill(0, 294, LCD_W - 1, LCD_H - 1, BLACK);
+    Snake_ShowTextCenter(300, 12, "KNOB MODE  R/ANY KEY BACK",
+                         LGRAY, BLACK, 1);
+    Snake_DrawHomeSnake(snake_x, 0, snake_x);
 }
 
 static void Snake_ShowRanking(void)
@@ -2106,7 +2115,7 @@ static void Snake_ShowRanking(void)
         knob_value = Snake_KnobRead();
         if ((u16)(knob_value + KNOB_TURN_DELTA) < last_knob_value ||
             knob_value > (u16)(last_knob_value + KNOB_TURN_DELTA)) {
-            selected_mode = (u8)(knob_value / KNOB_LEVEL_STEP);
+            selected_mode = (u8)(knob_value / KNOB_MODE_STEP);
             if (selected_mode >= GAME_MODE_COUNT) {
                 selected_mode = GAME_MODE_COUNT - 1;
             }
@@ -2940,13 +2949,30 @@ static void Snake_BattleUpdateViewport(void)
     const BattleSnake *player = &battle_state.snakes[0];
     short vx;
     short vy;
+    const short left_margin = 4;
+    const short right_margin = GRID_COLS - 5;
+    const short top_margin = 5;
+    const short bottom_margin = GRID_ROWS - 6;
 
     if (!player->alive || player->len == 0) {
         return;
     }
 
-    vx = (short)player->x[0] - (GRID_COLS / 2);
-    vy = (short)player->y[0] - (GRID_ROWS / 2);
+    vx = battle_view_x;
+    vy = battle_view_y;
+
+    if ((short)player->x[0] < vx + left_margin) {
+        vx = (short)player->x[0] - left_margin;
+    } else if ((short)player->x[0] > vx + right_margin) {
+        vx = (short)player->x[0] - right_margin;
+    }
+
+    if ((short)player->y[0] < vy + top_margin) {
+        vy = (short)player->y[0] - top_margin;
+    } else if ((short)player->y[0] > vy + bottom_margin) {
+        vy = (short)player->y[0] - bottom_margin;
+    }
+
     if (vx < 0) vx = 0;
     if (vy < 0) vy = 0;
     if (vx > BATTLE_WORLD_COLS - GRID_COLS) {
@@ -3330,6 +3356,7 @@ static void Snake_BattleSnakeBounds(u8 player, BattleRenderBounds *bounds)
 {
     const BattleSnake *snake = &battle_state.snakes[player];
     u16 i;
+    u16 tail_start;
     short px;
     short py;
 
@@ -3338,9 +3365,13 @@ static void Snake_BattleSnakeBounds(u8 player, BattleRenderBounds *bounds)
         return;
     }
 
+    tail_start = (snake->len > 5) ? (u16)(snake->len - 5) : 0;
     for (i = 0; i < snake->len; i++) {
+        if (i >= 5 && i < tail_start) {
+            continue;
+        }
         if (Snake_BattleInterpolatedCenter(snake, i, &px, &py)) {
-            Snake_BattleBoundsInclude(bounds, px, py, 11);
+            Snake_BattleBoundsInclude(bounds, px, py, 14);
         }
     }
 }
@@ -3385,6 +3416,41 @@ static void Snake_BattleDrawSnakes(void)
         for (i = snake->len; i > 0; i--) {
             Snake_BattleDrawSnakeCell((u8)(player - 1), (u16)(i - 1));
         }
+    }
+}
+
+static void Snake_BattleDrawWorldBoundary(void)
+{
+    short x;
+    short y;
+
+    if (battle_view_x == 0) {
+        Snake_BattleFillBoardRect(BOARD_X + 1, BOARD_Y + 1,
+                                  BOARD_X + 3,
+                                  BOARD_Y + GRID_ROWS * CELL_H - 2,
+                                  HOME_GOLD);
+    }
+    if ((u16)battle_view_x + GRID_COLS >= BATTLE_WORLD_COLS) {
+        x = (short)(BOARD_X +
+                    ((BATTLE_WORLD_COLS - battle_view_x) * CELL_W) - 2);
+        Snake_BattleFillBoardRect(x, BOARD_Y + 1,
+                                  (short)(x + 2),
+                                  BOARD_Y + GRID_ROWS * CELL_H - 2,
+                                  HOME_GOLD);
+    }
+    if (battle_view_y == 0) {
+        Snake_BattleFillBoardRect(BOARD_X + 1, BOARD_Y + 1,
+                                  BOARD_X + GRID_COLS * CELL_W - 2,
+                                  BOARD_Y + 3,
+                                  HOME_GOLD);
+    }
+    if ((u16)battle_view_y + GRID_ROWS >= BATTLE_WORLD_ROWS) {
+        y = (short)(BOARD_Y +
+                    ((BATTLE_WORLD_ROWS - battle_view_y) * CELL_H) - 2);
+        Snake_BattleFillBoardRect(BOARD_X + 1, y,
+                                  BOARD_X + GRID_COLS * CELL_W - 2,
+                                  (short)(y + 2),
+                                  HOME_GOLD);
     }
 }
 
@@ -3467,12 +3533,13 @@ static void Snake_BattleRender(void)
         battle_render_view_y != battle_view_y) {
         LCD_Fill(BOARD_X, BOARD_Y, BOARD_X + GRID_COLS * CELL_W - 1,
                  BOARD_Y + GRID_ROWS * CELL_H - 1, BATTLE_BG);
+        Snake_BattleDrawPellets();
+        Snake_BattleDrawSnakes();
+        Snake_BattleDrawWorldBoundary();
         POINT_COLOR = BATTLE_GRID;
         LCD_DrawRectangle(BOARD_X - 1, BOARD_Y - 1,
                           BOARD_X + GRID_COLS * CELL_W,
                           BOARD_Y + GRID_ROWS * CELL_H);
-        Snake_BattleDrawPellets();
-        Snake_BattleDrawSnakes();
         Snake_BattleSaveBounds(current_bounds);
         battle_force_full_render = 0;
         return;
@@ -3485,6 +3552,7 @@ static void Snake_BattleRender(void)
 
     Snake_BattleDrawPellets();
     Snake_BattleDrawSnakes();
+    Snake_BattleDrawWorldBoundary();
 
     POINT_COLOR = BATTLE_GRID;
     LCD_DrawRectangle(BOARD_X - 1, BOARD_Y - 1,
@@ -3641,10 +3709,12 @@ static void Snake_BattleHandleSerial(void)
             } else if (cmd.value == 3) {
                 battle_skin = 0;
                 battle_header_dirty = 1;
+                battle_force_full_render = 1;
                 Snake_SetStatus("CLASSIC SKIN");
             } else if (cmd.value == 4) {
                 battle_skin = 1;
                 battle_header_dirty = 1;
+                battle_force_full_render = 1;
                 Snake_SetStatus("NAIL SKIN");
             }
         } else if (Snake_CommandToDir(cmd.type, &want)) {
@@ -3725,6 +3795,8 @@ static void Snake_BattleStart(void)
     battle_pause_cooldown_ms = 0;
     battle_header_dirty = 1;
     battle_frame_led = 0;
+    battle_render_valid = 0;
+    battle_force_full_render = 1;
     paused = 0;
     pause_lock = 0;
     restart_request = 0;
@@ -3760,6 +3832,12 @@ static void Snake_BattleLoop(void)
         if (!paused) {
             Snake_BattleUpdateAi(&battle_input);
             Battle_Update(&battle_state, &battle_input, battle_frame_ms);
+            if (battle_state.last_events &
+                (BATTLE_EVENT_DEATH_P1 | BATTLE_EVENT_DEATH_P2 |
+                 BATTLE_EVENT_RESPAWN_P1 | BATTLE_EVENT_RESPAWN_P2 |
+                 BATTLE_EVENT_MATCH_END)) {
+                battle_force_full_render = 1;
+            }
             score = battle_state.snakes[0].score;
             score2 = 0;
             Snake_UpdateBest();
